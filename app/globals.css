@@ -4,6 +4,25 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Tailwind v4 no longer centers or pads `.container` by default, which left
+ * every section's content flush against the left edge. Redefine it to center
+ * with responsive horizontal padding and a sensible max width.
+ */
+@utility container {
+  margin-inline: auto;
+  padding-inline: 1rem;
+  width: 100%;
+  max-width: 80rem;
+
+  @media (width >= 40rem) {
+    padding-inline: 1.5rem;
+  }
+  @media (width >= 64rem) {
+    padding-inline: 2rem;
+  }
+}
+
 @theme inline {
     --font-heading: var(--font-sans);
     --font-sans: var(--font-sans);
@@ -129,4 +148,22 @@
   html {
     @apply font-sans;
     }
+}
+
+/* Lenis smooth scroll — recommended base styles. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: clip;
 }

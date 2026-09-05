@@ -1,0 +1,18 @@
+In /app/(landing)/page.tsx:
+
+add components from /components/sections in this sequence: 
+1. nav
+2. video hero
+3. integrations
+4. problems
+5. solutions
+6. numbers
+7. compare
+8. cta
+9. FAQ
+10. Footer
+
+
+once all components are added, ensure that they are having appropriate spacing between them, since earlier these components were just mere single standalone blocks there fore they might have too much padding in y-axis or margins in y-axis. Adjust the spacing to create a cohesive layout that flows well from one section to the next.To add the components from `/components/sections` in the specified sequence and ensure appropriate spacing between them , also rename the components if necessary to maintain a consistent naming convention across the landing page. 
+
+
