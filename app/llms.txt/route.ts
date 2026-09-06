@@ -28,6 +28,25 @@ Core capabilities:
   instantly, including the diff verdict.
 - Self-hosted: one Go binary, SQLite or PostgreSQL, encrypted at rest.
 
+## Performance and reliability
+
+Measured in a 90-minute soak test against the full stack (PostgreSQL, Redis,
+Priompt server) at 40 concurrent workers over a 40-prompt pool:
+- 1,420,771 actions processed at ~263 actions/second.
+- 0 lost writes and 0 incorrect reads (verified against an independent
+  reference model); 0 incidents.
+- p95 latency stayed in single-digit milliseconds throughout (reads ~5 ms p95),
+  with no latency drift and no memory growth over the run.
+- Concurrent writes to the same prompt use compare-and-swap: conflicting
+  writers are cleanly rejected (ABORTED) and retry, never corrupted or
+  silently dropped.
+- Semantic diff verdicts are deterministic: across a labeled corpus of 21 edit
+  types, every repeated round produced the same verdict.
+
+(Load was synthetic, from a scripted worker pool; figures are from the offline
+lexical embedder run for throughput, and a separate real-model run
+(BAAI/bge-small-en-v1.5) confirms diff-quality determinism.)
+
 ## Repositories
 
 - Server: ${site.githubUrl}

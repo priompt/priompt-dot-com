@@ -78,6 +78,7 @@ const mobileMenuTransition = {
   ease: [0.32, 0.72, 0, 1] as const,
 };
 
+// Inner submenu (root <-> developers) horizontal slide.
 const mobilePanelVariants = {
   initial: (direction: number) => ({
     x: direction === 0 ? 0 : direction > 0 ? "100%" : "-100%",
@@ -90,8 +91,17 @@ const mobilePanelVariants = {
   }),
 };
 
+// The sheet itself slides in from the right edge of the viewport.
+const mobileSheetVariants = {
+  initial: { x: "100%" },
+  animate: { x: 0 },
+  exit: { x: "100%" },
+};
+
+// Full-viewport sheet anchored to the right. Rendered outside NavigationMenu
+// so nothing clips it or turns it into an in-flow dropdown.
 const mobileMenuShellClassName =
-  "fixed inset-0 top-[72px] z-100 flex flex-col overflow-hidden border-t border-border bg-popover text-popover-foreground lg:hidden";
+  "fixed inset-y-0 right-0 z-[210] flex w-full max-w-sm flex-col overflow-hidden border-l border-border bg-popover text-popover-foreground shadow-xl lg:hidden";
 
 const mobileMenuPanelClassName =
   "absolute inset-0 flex h-full w-full flex-col overflow-x-hidden overflow-y-auto overscroll-y-contain bg-popover will-change-transform";
@@ -262,134 +272,164 @@ const Navbar = ({ className }: NavbarProps) => {
               </Button>
             </div>
           </div>
-
-          {/* Mobile Menu */}
-          <AnimatePresence>
-            {open && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.18, ease: "easeOut" }}
-                className={mobileMenuShellClassName}
-              >
-                {submenu && (
-                  <div className="relative z-10 shrink-0 border-b border-border bg-popover px-4 py-3">
-                    <Button variant="outline" onClick={closeSubmenu}>
-                      <ChevronLeft />
-                      Back
-                    </Button>
-                  </div>
-                )}
-                <div className="relative min-h-0 flex-1">
-                  <AnimatePresence
-                    mode="sync"
-                    custom={menuDirection}
-                    initial={false}
-                  >
-                    <motion.div
-                      key={submenu ?? "root"}
-                      custom={menuDirection}
-                      variants={mobilePanelVariants}
-                      initial="initial"
-                      animate="animate"
-                      exit="exit"
-                      transition={mobileMenuTransition}
-                      className={mobileMenuPanelClassName}
-                    >
-                      {!submenu && (
-                        <>
-                          <div>
-                            {(
-                              [
-                                ["#features", "Features"],
-                                ["#compare", "Compare"],
-                                ["#faq", "FAQ"],
-                              ] as const
-                            ).map(([href, label]) => (
-                              <a
-                                key={href}
-                                href={href}
-                                onClick={toggleMobileMenu}
-                                className="flex w-full items-center border-b border-border px-8 py-7 text-left transition-colors hover:bg-muted/30 dark:hover:bg-muted/25"
-                              >
-                                <span className="flex-1">{label}</span>
-                              </a>
-                            ))}
-                            <button
-                              type="button"
-                              className="flex w-full items-center border-b border-border px-8 py-7 text-left transition-colors hover:bg-muted/30 dark:hover:bg-muted/25"
-                              onClick={() => openSubmenu("developers")}
-                            >
-                              <span className="flex-1">Developers</span>
-                              <span className="shrink-0">
-                                <ChevronRight className="size-4" />
-                              </span>
-                            </button>
-                          </div>
-                          <div className="mx-8 mt-auto flex flex-col gap-4 py-12">
-                            <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-muted-foreground">
-                                Toggle theme
-                              </span>
-                              <ThemeToggle className="border border-border" />
-                            </div>
-                            <Button className="relative" size="lg" asChild>
-                              <a
-                                href={social.github}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                <FaGithub />
-                                GitHub
-                              </a>
-                            </Button>
-                          </div>
-                        </>
-                      )}
-
-                      {submenu === "developers" && (
-                        <>
-                          <div className="px-8 pt-8 pb-3.5 text-xs font-semibold tracking-wide text-foreground uppercase">
-                            Build with Priompt
-                          </div>
-                          <div className="mb-4 px-8 text-sm font-normal text-muted-foreground">
-                            Docs, SDKs, and the tools for authoring and serving
-                            prompts.
-                          </div>
-                          <div className="space-y-1 px-8 pb-16">
-                            {developerLinks.map((link, index) => (
-                              <a
-                                key={index}
-                                href={link.href}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="group flex flex-row items-start gap-3 rounded-md px-2 py-2.5 transition-colors hover:bg-muted/30 dark:hover:bg-muted/25"
-                              >
-                                <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-muted p-1.5">
-                                  <link.icon className="size-4 text-foreground" />
-                                </span>
-                                <div>
-                                  <div className="text-sm font-medium">
-                                    {link.title}
-                                  </div>
-                                  <div className="text-sm font-normal text-muted-foreground">
-                                    {link.description}
-                                  </div>
-                                </div>
-                              </a>
-                            ))}
-                          </div>
-                        </>
-                      )}
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </NavigationMenu>
       </div>
+
+      {/* Mobile Menu — a right-to-left sheet, rendered outside NavigationMenu
+          so it is not clipped or positioned like a dropdown. */}
+      <AnimatePresence>
+        {open && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              onClick={toggleMobileMenu}
+              className="fixed inset-0 z-[200] bg-black/40 lg:hidden"
+            />
+
+            {/* Sheet */}
+            <motion.div
+              variants={mobileSheetVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={mobileMenuTransition}
+              className={mobileMenuShellClassName}
+            >
+              {/* Sheet header: always present so the sheet is self-contained.
+                  Shows Back when in a submenu, the brand otherwise; the close
+                  (X) button is always available on the right. */}
+              <div className="relative z-10 flex shrink-0 items-center justify-between border-b border-border bg-popover px-4 py-3">
+                {submenu ? (
+                  <Button variant="outline" size="sm" onClick={closeSubmenu}>
+                    <ChevronLeft className="size-4" />
+                    Back
+                  </Button>
+                ) : (
+                  <span className="text-base font-semibold tracking-tight">
+                    Menu
+                  </span>
+                )}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="Close menu"
+                  onClick={toggleMobileMenu}
+                >
+                  <X className="size-4" />
+                </Button>
+              </div>
+              <div className="relative min-h-0 flex-1">
+                <AnimatePresence
+                  mode="sync"
+                  custom={menuDirection}
+                  initial={false}
+                >
+                  <motion.div
+                    key={submenu ?? "root"}
+                    custom={menuDirection}
+                    variants={mobilePanelVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    transition={mobileMenuTransition}
+                    className={mobileMenuPanelClassName}
+                  >
+                    {!submenu && (
+                      <>
+                        <div>
+                          {(
+                            [
+                              ["#features", "Features"],
+                              ["#compare", "Compare"],
+                              ["#faq", "FAQ"],
+                            ] as const
+                          ).map(([href, label]) => (
+                            <a
+                              key={href}
+                              href={href}
+                              onClick={toggleMobileMenu}
+                              className="flex w-full items-center border-b border-border px-8 py-7 text-left transition-colors hover:bg-muted/30 dark:hover:bg-muted/25"
+                            >
+                              <span className="flex-1">{label}</span>
+                            </a>
+                          ))}
+                          <button
+                            type="button"
+                            className="flex w-full items-center border-b border-border px-8 py-7 text-left transition-colors hover:bg-muted/30 dark:hover:bg-muted/25"
+                            onClick={() => openSubmenu("developers")}
+                          >
+                            <span className="flex-1">Developers</span>
+                            <span className="shrink-0">
+                              <ChevronRight className="size-4" />
+                            </span>
+                          </button>
+                        </div>
+                        <div className="mx-8 mt-auto flex flex-col gap-4 pt-12 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-muted-foreground">
+                              Toggle theme
+                            </span>
+                            <ThemeToggle className="border border-border" />
+                          </div>
+                          <Button className="relative" size="lg" asChild>
+                            <a
+                              href={social.github}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <FaGithub />
+                              GitHub
+                            </a>
+                          </Button>
+                        </div>
+                      </>
+                    )}
+
+                    {submenu === "developers" && (
+                      <>
+                        <div className="px-8 pt-8 pb-3.5 text-xs font-semibold tracking-wide text-foreground uppercase">
+                          Build with Priompt
+                        </div>
+                        <div className="mb-4 px-8 text-sm font-normal text-muted-foreground">
+                          Docs, SDKs, and the tools for authoring and serving
+                          prompts.
+                        </div>
+                        <div className="space-y-1 px-8 pb-16">
+                          {developerLinks.map((link, index) => (
+                            <a
+                              key={index}
+                              href={link.href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="group flex flex-row items-start gap-3 rounded-md px-2 py-2.5 transition-colors hover:bg-muted/30 dark:hover:bg-muted/25"
+                            >
+                              <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-muted p-1.5">
+                                <link.icon className="size-4 text-foreground" />
+                              </span>
+                              <div>
+                                <div className="text-sm font-medium">
+                                  {link.title}
+                                </div>
+                                <div className="text-sm font-normal text-muted-foreground">
+                                  {link.description}
+                                </div>
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </section>
   );
 };

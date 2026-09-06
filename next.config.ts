@@ -1,27 +1,34 @@
 import type { NextConfig } from "next"
 
+// Cloudflare Workers has no Node.js image optimizer (no `sharp`). Two safe modes:
+//   default              -> images.unoptimized (served as-is, works everywhere)
+//   CF transform enabled -> custom loader hitting Cloudflare's /cdn-cgi/image/
+// Flip with NEXT_PUBLIC_CF_IMAGE_TRANSFORM=1 once the zone has "Transformations".
+const cfTransform = process.env.NEXT_PUBLIC_CF_IMAGE_TRANSFORM === "1"
+
 const nextConfig: NextConfig = {
-  images: {
-    // Cloudflare Workers has no Node.js image optimizer (no `sharp`), so we use
-    // a `custom` loader instead of the built-in Image Optimization API.
-    //
-    // The loader's default is a pass-through (serves the original src), so
-    // images work everywhere — local dev, `next start`, and Cloudflare — out of
-    // the box. Set NEXT_PUBLIC_CF_IMAGE_TRANSFORM=1 to enable edge resizing/
-    // format conversion via Cloudflare's /cdn-cgi/image/ endpoint, but only
-    // after "Transformations" is enabled on the zone.
-    loader: "custom",
-    loaderFile: "./lib/cloudflare-image-loader.ts",
-    formats: ["image/avif", "image/webp"],
-    // Allow next/image to reference the shadcnblocks demo CDN used in a few
-    // marketing sections (without this, next/image throws on remote hosts).
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "deifkwefumgah.cloudfront.net",
+  images: cfTransform
+    ? {
+        loader: "custom",
+        loaderFile: "./lib/cloudflare-image-loader.ts",
+        formats: ["image/avif", "image/webp"],
+        remotePatterns: [
+          {
+            protocol: "https",
+            hostname: "deifkwefumgah.cloudfront.net",
+          },
+        ],
+      }
+    : {
+        // Pass-through: no optimizer required, no missing-loader-width warning.
+        unoptimized: true,
+        remotePatterns: [
+          {
+            protocol: "https",
+            hostname: "deifkwefumgah.cloudfront.net",
+          },
+        ],
       },
-    ],
-  },
 }
 
 export default nextConfig

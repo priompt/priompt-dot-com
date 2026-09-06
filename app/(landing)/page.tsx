@@ -21,7 +21,10 @@ export default function Page() {
       <main className="flex flex-col">
         <VideoHero
           previewVideo={{ src: "/images/brain_neurons.mp4" }}
-          previewImage={undefined}
+          previewImage={{
+            src: "/images/brain_neurons_placeholder.png",
+            alt: "Neural network visualization",
+          }}
           badge={{ text: "Self-hosted · gRPC · Pre-release" }}
           heading="Your prompts are your product. Stop renting them."
           description="A self-hosted prompt registry with a diff that tells a typo from a policy flip, then pushes that verdict to every agent running it."

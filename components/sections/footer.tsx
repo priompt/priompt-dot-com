@@ -152,6 +152,10 @@ const Footer = (props: Props) => {
               </ul>
             ) : null}
           </div>
+          <p className="mt-6 text-center text-xs text-muted-foreground/80 lg:mt-8">
+            Third-party logos are shown for representation only and do not imply
+            affiliation with or endorsement by their owners.
+          </p>
         </footer>
       </div>
     </section>

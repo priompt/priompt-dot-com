@@ -137,7 +137,7 @@ const VideoHero = (props: Props) => {
   return (
     <section className={cn("overflow-hidden bg-background", className)}>
       <div className="relative w-full">
-        <div className="relative h-[75vh] min-h-[420px] w-full overflow-hidden">
+        <div className="relative h-[60vh] min-h-[360px] w-full overflow-hidden md:h-[75vh] md:min-h-[420px]">
           {stageSrc ? (
             <video
               ref={videoRef}

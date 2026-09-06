@@ -44,6 +44,8 @@ interface FeatureImage {
   url?: string;
   /** For mono logos that need inverting in dark mode (no color variant). */
   invert?: boolean;
+  /** Hide this logo tile on small (mobile) viewports to keep the grid tidy. */
+  hideOnMobile?: boolean;
 }
 
 interface FeatureItem {
@@ -93,11 +95,13 @@ const Solutions = ({
           src: "/images/logos/llamaindex-color.svg",
           alt: "LlamaIndex logo",
           url: "https://www.llamaindex.ai",
+          hideOnMobile: true,
         },
         {
           src: "/images/logos/pydanticai-color.svg",
           alt: "PydanticAI logo",
           url: "https://ai.pydantic.dev",
+          hideOnMobile: true,
         },
         {
           src: "/images/logos/hermesagent.svg",
@@ -243,12 +247,17 @@ const FeatureCard = ({ item, isLast, className }: FeatureCardProps) => {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={image.alt}
-                  className="rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className={cn(
+                    "rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                    image.hideOnMobile && "max-md:hidden",
+                  )}
                 >
                   {tile}
                 </a>
               ) : (
-                <div key={j}>{tile}</div>
+                <div key={j} className={cn(image.hideOnMobile && "max-md:hidden")}>
+                  {tile}
+                </div>
               );
             })}
           </div>
