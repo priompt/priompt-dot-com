@@ -25,3 +25,9 @@ const nextConfig: NextConfig = {
 }
 
 export default nextConfig
+
+// Enables Cloudflare bindings (and OpenNext integration) during local
+// `next dev`. Harmless in production builds. See:
+// https://opennext.js.org/cloudflare/get-started
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare"
+initOpenNextCloudflareForDev()
