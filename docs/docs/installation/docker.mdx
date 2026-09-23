@@ -1,0 +1,119 @@
+---
+title: Docker
+---
+
+# Docker
+
+The image is a static Go binary on `alpine:3.20`. It exposes `8443` (gRPC), `2112` (metrics), and `4222` (NATS), and keeps its SQLite database in `/data`. The same steps work on Linux, macOS (Docker Desktop or OrbStack), and Windows (Docker Desktop with WSL 2).
+
+## Run the published image
+
+<Cmd lang="sh">{`
+docker run -d --name priompt \\
+  -p 8443:8443 \\
+  -v priompt-data:/data \\
+  -e PRIOMPT_SEED=false \\
+  {{dockerImage}}
+`}</Cmd>
+
+The default command is `serve`, and any arguments you add replace it:
+
+<Cmd lang="sh">{`
+docker run -d --name priompt -p 8443:8443 -v priompt-data:/data \\
+  -e PRIOMPT_TOKEN=change-me \\
+  {{dockerImage}} serve -addr=:8443 -db=/data/priompt.db -cache-ttl=30s
+`}</Cmd>
+
+Run the ops commands inside the same container:
+
+```sh
+docker exec -it priompt priompt list -addr localhost:8443
+docker exec -it priompt priompt backup -db /data/priompt.db -out /data/snapshot.jsonl
+```
+
+## Build and run with Compose (works today)
+
+Until the image is published, build it from the source checkout. The build context is the **parent** directory, because the server's `go.mod` points at the sibling `proto`, `db-adapters`, and `auth` modules. Clone them side by side first ([From source](./from-source.md#get-the-code)), then:
+
+```sh
+cd priompt
+docker compose up --build -d
+```
+
+`docker-compose.yml` is the whole configuration in one file:
+
+```yaml
+services:
+  priompt:
+    build:
+      context: ..                      # parent dir: go.mod replaces point at sibling modules
+      dockerfile: priompt/Dockerfile
+    ports:
+      - "8443:8443"               # gRPC
+      - "127.0.0.1:2112:2112"     # Prometheus /metrics: keep off the public interface
+      - "127.0.0.1:4222:4222"     # NATS pub/sub: set PRIOMPT_NATS_TOKEN before widening
+    volumes:
+      - priompt-data:/data        # SQLite db persists here
+      # - ./tls:/tls:ro           # uncomment to mount TLS material
+    environment:
+      PRIOMPT_TOKEN: "${PRIOMPT_TOKEN:-}"            # admin bearer token (blank = auth off)
+      PRIOMPT_JWKS_URL: "${PRIOMPT_JWKS_URL:-}"      # priompt-auth /jwks; blank = no JWT auth
+      PRIOMPT_EMBED_URL: "${PRIOMPT_EMBED_URL:-}"    # blank = offline lexical embedder
+      PRIOMPT_EMBED_MODEL: "${PRIOMPT_EMBED_MODEL:-}"
+      PRIOMPT_EMBED_KEY: "${PRIOMPT_EMBED_KEY:-}"
+      PRIOMPT_REDIS_URL: "${PRIOMPT_REDIS_URL:-}"    # blank = in-process cache
+      PRIOMPT_NATS_TOKEN: "${PRIOMPT_NATS_TOKEN:-}"  # required once NATS is published off-loopback
+      PRIOMPT_ENCRYPTION_KEY: "${PRIOMPT_ENCRYPTION_KEY:-}" # base64 of 32 bytes
+    command:
+      - serve
+      - -addr=:8443
+      - -db=/data/priompt.db
+      - -nats-addr=0.0.0.0:4222
+      - -metrics-addr=:2112
+      - -cache-ttl=30s
+      - -rate-limit=0
+      # - -tls-cert=/tls/server.crt
+      # - -tls-key=/tls/server.key
+      # - -client-ca=/tls/ca.crt        # enables mTLS
+      # - -tokens-file=/tls/tokens.txt
+    restart: unless-stopped
+
+volumes:
+  priompt-data:
+```
+
+Put secrets in a `.env` file next to it, and keep that file out of git:
+
+```ini
+PRIOMPT_TOKEN=replace-with-output-of-priompt-gen-token
+PRIOMPT_NATS_TOKEN=another-random-token
+PRIOMPT_ENCRYPTION_KEY=base64-of-32-random-bytes
+```
+
+:::warning NATS inside a container
+Inside the container NATS listens on `0.0.0.0:4222`, which is not loopback, so the server **will not start without `PRIOMPT_NATS_TOKEN`**. That's deliberate. Change events name every prompt and carry the verdict agents act on, so an open broker leaks tenant names and lets anyone forge events. Subscribers then connect with `nats://<token>@host:4222`.
+:::
+
+## Add a real embedding model
+
+The semantic diff falls back to an offline lexical embedder. The TEI overlay adds a local HuggingFace model so the diff scores *meaning*:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.tei.yml up --build
+# choose another model:
+EMBED_MODEL=intfloat/e5-large-v2 docker compose -f docker-compose.yml -f docker-compose.tei.yml up
+```
+
+The first start downloads the model, so allow about a minute. Any OpenAI-compatible `/v1/embeddings` endpoint works instead, such as Ollama, llama.cpp, or OpenAI; see [Semantic diff](../concepts/semantic-diff.md#use-a-real-embedding-model).
+
+## Postgres and Redis
+
+For more than one node, point the container at shared services:
+
+```sh
+docker run -d -p 8443:8443 \
+  -e PRIOMPT_REDIS_URL=redis://redis:6379/0 \
+  … serve -db postgres://priompt:pw@postgres:5432/prompts
+```
+
+See [Scaling](../operations/scaling.md) for the full multi-node setup, including NATS clustering.

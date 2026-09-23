@@ -13,7 +13,10 @@
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
-    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "docs:dev": "pnpm --filter priompt-docs start",
+    "docs:build": "pnpm --filter priompt-docs build",
+    "docs:serve": "pnpm --filter priompt-docs serve"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

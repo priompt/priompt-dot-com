@@ -1,0 +1,111 @@
+---
+title: Quick start
+---
+
+# Quick start
+
+This page takes you from nothing to an agent fetching a prompt in about five minutes. Choose Docker if you want no toolchain, or build from source if you already have Go.
+
+<Tabs groupId="quickstart">
+<TabItem value="docker" label="Docker" default>
+
+On first start the server seeds a demo prompt, so you can fetch something right away.
+
+<Cmd lang="sh">{`
+# 1. run the server
+docker run -d --name priompt -p 8443:8443 -v priompt-data:/data {{dockerImage}}
+
+# 2. install the Python client (it imports as \`priompt\`)
+pip install {{pypiName}}
+`}</Cmd>
+
+</TabItem>
+<TabItem value="source" label="From source">
+
+You need Go 1.25+ and the sibling repos cloned side by side (see [From source](./installation/from-source.md)).
+
+```sh
+cd priompt
+go build -o priompt ./cmd/priompt          # priompt.exe on Windows
+
+# store a prompt; validation runs here, no server needed yet
+echo "Hi {name}, welcome to {org}!" > welcome.txt
+./priompt put -uri priompt://acme/onboarding/welcome -file welcome.txt -slot name -slot org
+# stored priompt://acme/onboarding/welcome (22e5cc10ac0f)
+
+# serve it
+./priompt serve -addr :8443
+```
+
+In a second terminal, install the Python client from the checkout:
+
+```sh
+pip install -e ../python-sdk
+```
+
+</TabItem>
+</Tabs>
+
+## Fetch the prompt from your code
+
+<Tabs groupId="lang">
+<TabItem value="py" label="Python" default>
+
+```python
+from priompt import PromptClient
+
+client = PromptClient(host="localhost:8443")
+prompt = client.get("priompt://acme/onboarding/welcome")
+print(prompt.template.format(name="Sujal", org="Acme"))
+# Hi Sujal, welcome to Acme!
+```
+
+</TabItem>
+<TabItem value="js" label="Node">
+
+<Cmd lang="sh">{`npm i {{npmName}}`}</Cmd>
+
+<Cmd lang="js">{`
+const { PromptClient } = require("{{npmName}}");
+
+const client = new PromptClient({ host: "localhost:8443" });
+const prompt = await client.get("priompt://acme/onboarding/welcome");
+console.log(prompt.template, prompt.version_hash);
+`}</Cmd>
+
+</TabItem>
+</Tabs>
+
+## Try the safety net
+
+These steps use the `priompt` binary from the source build. With Docker, run the same commands inside the container, for example `docker exec -it priompt priompt …`.
+
+If a template and its declared slots disagree, the prompt is rejected and nothing is written:
+
+```sh
+./priompt put -uri priompt://acme/bad/x -file welcome.txt -slot name
+# validation failed: template uses undeclared slots: org   (exit 1)
+```
+
+Publish a second version and watch a subscriber receive the change with its semantic verdict:
+
+```sh
+# terminal A
+./priompt watch -uri priompt://acme/onboarding/welcome
+
+# terminal B
+echo "Hi {name}, welcome back to {org}!" > v2.txt
+./priompt publish -uri priompt://acme/onboarding/welcome -file v2.txt -slot name -slot org
+
+# terminal A prints:
+# priompt://acme/onboarding/welcome updated -> 4146f71b692c… [localized tweak]
+```
+
+:::tip Production
+The server runs **open** when no tokens are configured. That's fine on your laptop and nowhere else. Run `priompt init` before exposing it (see [Security](./operations/security.md)), and turn off the demo prompt with `PRIOMPT_SEED=false`.
+:::
+
+## Next
+
+- Install it as a service on [Linux](./installation/linux.mdx), [macOS](./installation/macos.mdx), or [Windows](./installation/windows.mdx)
+- Learn how [versioning](./concepts/versioning.md) and [live updates](./concepts/live-updates.md) work

@@ -1,0 +1,134 @@
+---
+title: macOS
+---
+
+# Install on macOS
+
+Works on Apple Silicon (arm64) and Intel (amd64), macOS 12+.
+
+## 1. Get the binary
+
+<Tabs groupId="mac-method">
+<TabItem value="source" label="Build from source" default>
+
+```sh
+brew install go git          # Go 1.25+
+
+mkdir -p ~/src && cd ~/src
+for r in priompt proto db-adapters auth; do git clone https://github.com/priompt/$r.git; done
+cd priompt && go build -o priompt ./cmd/priompt
+
+sudo install -m 0755 priompt /usr/local/bin/priompt
+priompt migrate -db /tmp/check.db   # sanity check
+```
+
+:::note Gatekeeper
+A binary you build locally isn't quarantined. If you copy one from another machine and macOS blocks it, clear the flag with `xattr -d com.apple.quarantine /usr/local/bin/priompt`.
+:::
+
+</TabItem>
+<TabItem value="docker" label="Docker">
+
+With Docker Desktop or OrbStack:
+
+<Cmd lang="sh">{`
+docker run -d --name priompt --restart unless-stopped \\
+  -p 8443:8443 -v priompt-data:/data \\
+  {{dockerImage}}
+`}</Cmd>
+
+See [Docker](./docker.mdx) for Compose and configuration.
+
+</TabItem>
+</Tabs>
+
+## 2. Try it in the foreground
+
+```sh
+mkdir -p ~/Library/Application\ Support/priompt && cd "$_"
+priompt init                     # tokens.txt + prints PRIOMPT_URL
+priompt serve -tokens-file tokens.txt
+```
+
+## 3. Run it at login with launchd
+
+```sh
+mkdir -p ~/Library/Logs/priompt
+priompt gen-token                # use this output as the NATS token below
+head -c32 /dev/urandom | base64  # optional encryption key. Store it in your password manager.
+```
+
+Replace `YOU` with your username:
+
+```xml title="~/Library/LaunchAgents/com.priompt.server.plist"
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>             <string>com.priompt.server</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/priompt</string>
+    <string>serve</string>
+    <string>-addr</string>         <string>:8443</string>
+    <string>-db</string>           <string>/Users/YOU/Library/Application Support/priompt/priompt.db</string>
+    <string>-tokens-file</string>  <string>/Users/YOU/Library/Application Support/priompt/tokens.txt</string>
+    <string>-metrics-addr</string> <string>127.0.0.1:2112</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PRIOMPT_SEED</key>       <string>false</string>
+    <key>PRIOMPT_NATS_TOKEN</key> <string>REPLACE_WITH_GEN_TOKEN_OUTPUT</string>
+  </dict>
+  <key>RunAtLoad</key>         <true/>
+  <key>KeepAlive</key>         <true/>
+  <key>StandardErrorPath</key> <string>/Users/YOU/Library/Logs/priompt/priompt.log</string>
+  <key>StandardOutPath</key>   <string>/Users/YOU/Library/Logs/priompt/priompt.log</string>
+</dict>
+</plist>
+```
+
+```sh
+chmod 600 ~/Library/LaunchAgents/com.priompt.server.plist   # it holds a secret
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.priompt.server.plist
+launchctl print gui/$(id -u)/com.priompt.server | grep state
+tail -f ~/Library/Logs/priompt/priompt.log
+```
+
+Stop or reload it:
+
+```sh
+launchctl bootout gui/$(id -u)/com.priompt.server
+```
+
+To start it at **boot**, before anyone logs in (a shared Mac or a Mac mini server), put the plist in `/Library/LaunchDaemons/`, add a `UserName` key, and load it with `sudo launchctl bootstrap system …`.
+
+:::tip Firewall prompt
+The first time `priompt` listens on `:8443`, macOS may ask whether to accept incoming connections. If only local apps use it, bind `-addr 127.0.0.1:8443` and the prompt won't appear.
+:::
+
+## 4. Connect a client
+
+```sh
+export PRIOMPT_URL=priompt://<token>@localhost:8443
+priompt list
+```
+
+<Cmd lang="sh">{`pip install {{pypiName}}`}</Cmd>
+
+## Upgrade
+
+```sh
+cd ~/src && for r in priompt proto db-adapters auth; do git -C $r pull; done
+cd priompt && go build -o priompt ./cmd/priompt && sudo install -m 0755 priompt /usr/local/bin/priompt
+launchctl kickstart -k gui/$(id -u)/com.priompt.server
+```
+
+## Uninstall
+
+```sh
+launchctl bootout gui/$(id -u)/com.priompt.server
+rm ~/Library/LaunchAgents/com.priompt.server.plist
+sudo rm /usr/local/bin/priompt
+rm -r ~/Library/Application\ Support/priompt   # deletes all prompts: back up first
+```

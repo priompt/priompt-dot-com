@@ -1,0 +1,38 @@
+---
+title: Installation
+---
+
+# Installation
+
+Priompt is one static Go binary: no runtime, no CGO, and no database to install (SQLite is built in). There are two ways to get it:
+
+| Method | Good for | Status |
+| --- | --- | --- |
+| [Docker](./docker.mdx) | The fastest start on any OS, and containerized production | Image name <Var name="dockerImage" /> is a placeholder until the first release. `docker compose up --build` from source works today. |
+| [From source](./from-source.md) | Every OS, today | Works now. Needs Go 1.25+ and git. |
+| Prebuilt binaries | Downloading a single file | Not published yet |
+
+Then follow the guide for your OS to run it as a proper background service:
+
+- [Linux](./linux.mdx): systemd unit, dedicated user, firewall
+- [macOS](./macos.mdx): launchd agent, Apple Silicon and Intel
+- [Windows](./windows.mdx): PowerShell setup, running as a Windows service
+
+## What gets installed where
+
+| Piece | Required? | Install |
+| --- | --- | --- |
+| `priompt` server | **yes** | this section |
+| Python SDK | if your agents are Python | `pip install` <Var name="pypiName" /> |
+| JS SDK | if your agents are Node | `npm i` <Var name="npmName" /> |
+| `promptctl` | if authors keep prompts in git | [build from source](./from-source.md#promptctl-and-priompt-auth) |
+| `priompt-auth` | if you need SSO or service accounts | [build from source](./from-source.md#promptctl-and-priompt-auth) |
+
+## Ports
+
+| Port | What | Expose? |
+| --- | --- | --- |
+| `8443` | gRPC API (what clients talk to) | Yes, to your agents |
+| `4222` | Embedded NATS (change notifications) | Only with `-nats-token` set. The server refuses a non-loopback bind without one. |
+| `2112` | Prometheus `/metrics` | Keep internal |
+| `8444` | `priompt-auth` (if used) | To clients that fetch tokens |

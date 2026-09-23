@@ -1,0 +1,79 @@
+---
+title: JavaScript SDK
+---
+
+# JavaScript SDK
+
+This is the Node client. There's no codegen: it loads `prompt.proto` at runtime through `@grpc/proto-loader`.
+
+## Install
+
+<Cmd lang="sh">{`
+npm i {{npmName}}
+npm i nats          # only if you use subscribe()
+`}</Cmd>
+
+## First prompt
+
+<Cmd lang="js">{`
+const { PromptClient } = require("{{npmName}}");
+
+const client = new PromptClient({ host: "localhost:8443" }); // token: "…" if auth is on
+const prompt = await client.get("priompt://acme/onboarding/welcome");
+
+console.log(prompt.template);       // Hi {name}, welcome to {org}!
+console.log(prompt.version_hash);   // 80ec4e4d…
+`}</Cmd>
+
+## Connecting
+
+A single variable, `PRIOMPT_URL=priompt://<token>@host:port`, carries both the address and the credential. With it set, `new PromptClient()` with no arguments just works.
+
+| Option | What it does |
+| --- | --- |
+| `host` | `address:port`. Optional if `url` or `PRIOMPT_URL` is set. |
+| `url` | a full `priompt://<token>@host:port`. Defaults to `PRIOMPT_URL`. |
+| `token` | bearer token. An explicit token wins over the URL's. |
+| `tls` | use TLS |
+| `caCert` | path to the CA that signed the server cert (needed for a private CA) |
+| `clientCert` / `clientKey` | for a server started with `-client-ca` (mTLS). Pass both or neither. |
+| `natsUrl` | broker endpoint for `subscribe()`. May carry the credential: `nats://<token>@host:4222`. |
+| `natsToken` | broker credential passed separately. Wins over the one in the URL. |
+
+The broker credential is separate from the gRPC token.
+
+## API
+
+```js
+await client.get(uri, ref)                 // ref = branch/commit hash to pin a version
+await client.diff(uri, newTemplate)        // semantic diff: stored vs your draft
+await client.publish(uri, template, slots) // publish a new version + notify subscribers
+await client.subscribe(uri, onChange)      // live updates
+```
+
+Publishing from code:
+
+```js
+await client.publish("priompt://acme/js/hello", "Hallo {wer}!", ["wer"]);
+```
+
+## Live updates
+
+```js
+const client = new PromptClient({
+  host: "localhost:8443",
+  token: "…",
+  natsUrl: "nats://<nats-token>@localhost:4222",
+});
+
+await client.subscribe("priompt://acme/support/agent", (version, classification) => {
+  // "" means the server couldn't classify the change. Treat it as unsafe.
+  if (["minor edit", "localized tweak", "new"].includes(classification)) {
+    reload(version);
+  } else {
+    alertAHuman(version);
+  }
+});
+```
+
+`stub-agent.js` in the js-sdk repo is a working example of this pattern. See [Live updates](../concepts/live-updates.md) for the policy discussion.

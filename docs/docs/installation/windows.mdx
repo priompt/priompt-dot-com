@@ -1,0 +1,133 @@
+---
+title: Windows
+---
+
+# Install on Windows
+
+Works on Windows 10/11 and Windows Server 2019+, amd64. All commands below are **PowerShell**.
+
+## 1. Get the binary
+
+<Tabs groupId="win-method">
+<TabItem value="source" label="Build from source" default>
+
+```powershell
+winget install GoLang.Go Git.Git      # Go 1.25+; open a new terminal afterwards
+
+mkdir $HOME\src; cd $HOME\src
+foreach ($r in "priompt","proto","db-adapters","auth") { git clone "https://github.com/priompt/$r.git" }
+cd priompt
+go build -o priompt.exe ./cmd/priompt
+
+# install system-wide
+New-Item -ItemType Directory -Force "C:\Program Files\Priompt" | Out-Null
+Copy-Item priompt.exe "C:\Program Files\Priompt\"
+$machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+[Environment]::SetEnvironmentVariable("Path", "$machinePath;C:\Program Files\Priompt", "Machine")
+```
+
+</TabItem>
+<TabItem value="docker" label="Docker">
+
+With Docker Desktop (WSL 2 backend):
+
+<Cmd lang="powershell">{`
+docker run -d --name priompt --restart unless-stopped \`
+  -p 8443:8443 -v priompt-data:/data \`
+  {{dockerImage}}
+`}</Cmd>
+
+See [Docker](./docker.mdx) for Compose and configuration.
+
+</TabItem>
+</Tabs>
+
+## 2. Try it in the foreground
+
+```powershell
+New-Item -ItemType Directory -Force C:\ProgramData\Priompt | Out-Null
+cd C:\ProgramData\Priompt
+priompt init                            # tokens.txt + prints PRIOMPT_URL
+priompt serve -tokens-file tokens.txt   # Ctrl+C to stop
+```
+
+The Windows equivalents of the Unix one-liners used elsewhere in these docs:
+
+```powershell
+# set an env var for this session
+$env:PRIOMPT_TOKEN = "secret"
+
+# a random 32-byte encryption key, base64 (cryptographically secure)
+$b = New-Object byte[] 32
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
+[Convert]::ToBase64String($b)
+
+# pipe a template to put/publish (instead of a heredoc)
+"Hi {name}, welcome to {org}!" | priompt put -uri priompt://acme/onboarding/welcome -file - -slot name -slot org
+```
+
+:::caution PowerShell 5.1 and piped text
+Windows PowerShell 5.1 may add a byte-order mark when it pipes text to native programs. If a piped template fails validation unexpectedly, write it to a file with `Set-Content -Encoding ascii welcome.txt` and pass `-file welcome.txt`, or use PowerShell 7.
+:::
+
+## 3. Run it as a Windows service
+
+`priompt.exe` is a normal console program, so wrap it with a service manager. [NSSM](https://nssm.cc/) is the simplest option:
+
+```powershell
+winget install NSSM.NSSM
+
+$dir = "C:\ProgramData\Priompt"
+nssm install Priompt "C:\Program Files\Priompt\priompt.exe"
+nssm set Priompt AppParameters "serve -addr :8443 -db $dir\priompt.db -tokens-file $dir\tokens.txt -metrics-addr 127.0.0.1:2112"
+nssm set Priompt AppDirectory $dir
+nssm set Priompt AppEnvironmentExtra "PRIOMPT_SEED=false" "PRIOMPT_NATS_TOKEN=$(priompt gen-token)"
+nssm set Priompt AppStderr "$dir\priompt.log"      # audit log (JSON lines)
+nssm set Priompt AppRotateFiles 1
+nssm set Priompt Start SERVICE_AUTO_START
+nssm start Priompt
+
+Get-Service Priompt
+```
+
+Lock the data directory down to SYSTEM and Administrators, because it holds the tokens file and the database:
+
+```powershell
+icacls C:\ProgramData\Priompt /inheritance:r /grant:r "SYSTEM:(OI)(CI)F" "Administrators:(OI)(CI)F"
+```
+
+### Firewall
+
+```powershell
+New-NetFirewallRule -DisplayName "Priompt gRPC" -Direction Inbound -Protocol TCP -LocalPort 8443 -Action Allow
+# only if remote agents subscribe to change events:
+New-NetFirewallRule -DisplayName "Priompt NATS" -Direction Inbound -Protocol TCP -LocalPort 4222 -Action Allow
+```
+
+## 4. Connect a client
+
+```powershell
+$env:PRIOMPT_URL = "priompt://<token>@localhost:8443"
+priompt list
+```
+
+<Cmd lang="powershell">{`pip install {{pypiName}}`}</Cmd>
+
+## Upgrade
+
+```powershell
+cd $HOME\src; foreach ($r in "priompt","proto","db-adapters","auth") { git -C $r pull }
+cd priompt; go build -o priompt.exe ./cmd/priompt
+nssm stop Priompt
+priompt backup -db C:\ProgramData\Priompt\priompt.db -out C:\ProgramData\Priompt\pre-upgrade.jsonl
+Copy-Item priompt.exe "C:\Program Files\Priompt\" -Force
+nssm start Priompt
+```
+
+## Uninstall
+
+```powershell
+nssm stop Priompt; nssm remove Priompt confirm
+Remove-Item -Recurse "C:\Program Files\Priompt"
+Remove-Item -Recurse C:\ProgramData\Priompt     # deletes all prompts: back up first
+```

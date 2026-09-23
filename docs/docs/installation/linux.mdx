@@ -1,0 +1,154 @@
+---
+title: Linux
+---
+
+# Install on Linux
+
+This guide takes a fresh Linux host (Debian/Ubuntu, RHEL/Fedora, Arch, anything with systemd) to a hardened Priompt service, on amd64 or arm64.
+
+## 1. Get the binary
+
+<Tabs groupId="linux-method">
+<TabItem value="source" label="Build from source" default>
+
+```sh
+# Go 1.25+ from go.dev (distro packages lag behind)
+curl -LO https://go.dev/dl/go1.25.0.linux-amd64.tar.gz      # use linux-arm64 on ARM
+sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.25.0.linux-amd64.tar.gz
+export PATH=$PATH:/usr/local/go/bin
+
+# clone the family side by side, then build
+mkdir -p ~/src && cd ~/src
+for r in priompt proto db-adapters auth; do git clone https://github.com/priompt/$r.git; done
+cd priompt && CGO_ENABLED=0 go build -o priompt ./cmd/priompt
+
+sudo install -m 0755 priompt /usr/local/bin/priompt
+priompt migrate -db /tmp/check.db   # sanity check: "schema up to date"
+```
+
+</TabItem>
+<TabItem value="docker" label="Docker">
+
+<Cmd lang="sh">{`
+docker run -d --name priompt --restart unless-stopped \\
+  -p 8443:8443 -v priompt-data:/data \\
+  -e PRIOMPT_SEED=false \\
+  {{dockerImage}}
+`}</Cmd>
+
+That's the whole install. Skip to [step 5](#5-connect-a-client), and see [Docker](./docker.mdx) for Compose.
+
+</TabItem>
+</Tabs>
+
+## 2. Create a service user and directories
+
+```sh
+sudo useradd --system --home /var/lib/priompt --shell /usr/sbin/nologin priompt
+sudo install -d -o priompt -g priompt -m 0750 /var/lib/priompt   # database
+sudo install -d -o root    -g priompt -m 0750 /etc/priompt       # config + secrets
+```
+
+## 3. Generate credentials
+
+```sh
+# admin token + tokens file; prints a PRIOMPT_URL for clients
+sudo priompt init -tokens-file /etc/priompt/tokens.txt -addr "$(hostname -f):8443"
+
+# NATS credential (required once NATS listens off-loopback)
+# and an encryption-at-rest key (optional, but back it up: lose it and data is gone)
+sudo tee /etc/priompt/priompt.env >/dev/null <<EOF
+PRIOMPT_SEED=false
+PRIOMPT_NATS_TOKEN=$(priompt gen-token)
+PRIOMPT_ENCRYPTION_KEY=$(head -c32 /dev/urandom | base64)
+EOF
+sudo chown root:priompt /etc/priompt/* && sudo chmod 0640 /etc/priompt/*
+```
+
+## 4. Install the systemd unit
+
+```ini title="/etc/systemd/system/priompt.service"
+[Unit]
+Description=Priompt prompt server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=priompt
+Group=priompt
+EnvironmentFile=/etc/priompt/priompt.env
+WorkingDirectory=/var/lib/priompt
+ExecStart=/usr/local/bin/priompt serve \
+  -addr :8443 \
+  -db /var/lib/priompt/priompt.db \
+  -tokens-file /etc/priompt/tokens.txt \
+  -nats-addr 0.0.0.0:4222 \
+  -metrics-addr 127.0.0.1:2112
+Restart=on-failure
+RestartSec=2
+
+# hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/priompt
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now priompt
+systemctl status priompt
+journalctl -u priompt -f          # one JSON audit line per RPC
+```
+
+Add TLS by appending `-tls-cert /etc/priompt/server.crt -tls-key /etc/priompt/server.key` to `ExecStart` (see [Security](../operations/security.md#tls-and-mtls)).
+
+### Firewall
+
+```sh
+# ufw (Debian/Ubuntu)
+sudo ufw allow 8443/tcp
+sudo ufw allow 4222/tcp        # only if remote agents subscribe to changes
+
+# firewalld (RHEL/Fedora)
+sudo firewall-cmd --permanent --add-port=8443/tcp && sudo firewall-cmd --reload
+```
+
+Leave `2112` (metrics) closed and scrape it from inside your network.
+
+## 5. Connect a client
+
+```sh
+export PRIOMPT_URL=priompt://<token>@your-host:8443     # printed by `priompt init`
+priompt list
+```
+
+<Cmd lang="sh">{`pip install {{pypiName}}`}</Cmd>
+
+```python
+from priompt import PromptClient
+PromptClient().get("priompt://acme/onboarding/welcome")   # reads PRIOMPT_URL
+```
+
+## Upgrade
+
+```sh
+cd ~/src && for r in priompt proto db-adapters auth; do git -C $r pull; done
+cd priompt && CGO_ENABLED=0 go build -o priompt ./cmd/priompt
+sudo sh -c 'set -a; . /etc/priompt/priompt.env; priompt backup -db /var/lib/priompt/priompt.db -out /var/lib/priompt/pre-upgrade.jsonl'   # env carries the encryption key
+sudo install -m 0755 priompt /usr/local/bin/priompt
+sudo systemctl restart priompt      # pending schema migrations run on start
+```
+
+## Uninstall
+
+```sh
+sudo systemctl disable --now priompt
+sudo rm /etc/systemd/system/priompt.service /usr/local/bin/priompt
+sudo rm -r /etc/priompt /var/lib/priompt   # deletes all prompts: back up first
+sudo userdel priompt
+```

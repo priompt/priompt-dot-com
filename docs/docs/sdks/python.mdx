@@ -1,0 +1,126 @@
+---
+title: Python SDK
+---
+
+# Python SDK
+
+This is the library your Python app imports to fetch its prompts by address, and to hear when they change. It requires Python 3.9+.
+
+## Install
+
+<Cmd lang="sh">{`
+pip install {{pypiName}}            # imports as \`priompt\`
+pip install "{{pypiName}}[nats]"    # add the [nats] extra if you use subscribe()
+`}</Cmd>
+
+Whatever the distribution ends up being called, the import is always `from priompt import PromptClient`.
+
+## First prompt
+
+```python
+from priompt import PromptClient
+
+client = PromptClient(host="localhost:8443")      # token="…" if auth is on
+prompt = client.get("priompt://acme/onboarding/welcome")
+
+text = prompt.template.format(name="Sujal", org="Acme")
+```
+
+| Field | Example | Meaning |
+| --- | --- | --- |
+| `template` | `Hi {name}, welcome to {org}!` | the prompt text |
+| `slots` | `['name', 'org']` | the blanks your app fills in |
+| `version_hash` | `80ec4e4d…` | a fingerprint of this exact content |
+| `commit_hash` | `1e8284…` | set when you fetched a pinned `ref` |
+
+## Connecting
+
+A single environment variable, `PRIOMPT_URL=priompt://<token>@host:port`, carries both the address and the credential. With it set, `PromptClient()` with no arguments just works.
+
+```python
+PromptClient(host=None, token=None, tls=False, ca_cert=None,
+             client_cert=None, client_key=None,
+             cache_ttl=0, nats_url=None, url=None)
+```
+
+| Parameter | What it does |
+| --- | --- |
+| `host` | `address:port`. Optional if `url` or `PRIOMPT_URL` is set. An explicit host wins over the URL's. |
+| `url` | a full `priompt://<token>@host:port` string. Defaults to `PRIOMPT_URL`. |
+| `token` | sent as `authorization: Bearer <token>`. An explicit token wins over the URL's. |
+| `tls` / `ca_cert` | use TLS, optionally pinning a CA certificate (file path) |
+| `client_cert` / `client_key` | client certificate for mTLS. Pass both or neither. |
+| `cache_ttl` | local cache lifetime in seconds (`0` = off) |
+| `nats_url` | broker endpoint for `subscribe()`, e.g. `nats://<nats-token>@host:4222` |
+
+## API
+
+```python
+client.get(uri, ref="")          # fetch; ref = branch or commit hash to pin a version
+client.list(prefix="")           # browse a URI prefix like a folder
+client.diff(uri, new_template)   # semantic diff: stored version vs your draft
+client.subscribe(uri, on_change) # notified the moment the prompt changes
+client.close()
+```
+
+```python
+for e in client.list("priompt://acme/support/"):
+    print(e.uri, e.version_hash)
+
+d = client.diff("priompt://acme/onboarding/welcome", "Hi {name}. Access to {org} is DENIED.")
+d.changes[0].classification      # 'structural'
+
+pinned = client.get("priompt://acme/support/agent", ref="1e8284f35650")
+```
+
+## Caching
+
+```python
+client = PromptClient(host="localhost:8443", cache_ttl=30)
+client.get(uri)   # hits the server
+client.get(uri)   # served locally for 30s
+```
+
+In the benchmark, 1,000 cached gets took under 1 ms, against 173 ms over the network. Pair the cache with `subscribe()` to pick up changes immediately, with the TTL as the fallback.
+
+## Live updates
+
+```python
+client = PromptClient(host="…:8443", cache_ttl=30, nats_url="nats://<nats-token>@…:4222")
+
+AUTO_RELOAD = {"minor edit", "localized tweak", "new"}   # "" is NOT safe: nobody checked
+
+def on_change(version, classification):
+    if classification in AUTO_RELOAD:
+        reload(version)
+    else:
+        alert_a_human(version)
+
+client.subscribe("priompt://acme/support/agent", on_change)
+```
+
+Treat the event as "something changed" and re-fetch with `get()`. Don't trust the version in the payload. See [Live updates](../concepts/live-updates.md).
+
+## TLS and mTLS
+
+```python
+PromptClient(host="prompts.internal:8443", token="…", tls=True, ca_cert="ca.crt")
+
+PromptClient(host="prompts.internal:8443", token="…", tls=True,
+             ca_cert="ca.crt", client_cert="client.crt", client_key="client.key")
+```
+
+## Branches, merges, rollback
+
+These aren't wrapped by the client yet. Use the generated stubs in `priompt.v1`, which are what any language sees:
+
+```python
+import grpc
+from priompt.v1 import prompt_pb2 as pb, prompt_pb2_grpc as rpc
+
+stub = rpc.PromptServiceStub(grpc.insecure_channel("localhost:8443"))
+stub.CreateBranch(pb.CreateBranchRequest(uri=uri, name="feat", **{"from": "main"}))
+stub.MergeBranch(pb.MergeBranchRequest(uri=uri, into="main", **{"from": "feat"}))
+```
+
+The `**{"from": …}` form is needed because `from` is a Python keyword.
