@@ -10,15 +10,11 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
-    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+    "preview": "next build && npx serve out"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
     "@hookform/resolvers": "^3.10.0",
-    "@opennextjs/cloudflare": "^1.20.6",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.2.4",
     "embla-carousel-auto-scroll": "^8.6.0",
@@ -47,7 +43,6 @@
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "wrangler": "^4.129.0"
+    "typescript": "^5"
   }
 }

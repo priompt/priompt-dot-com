@@ -1,12 +1,14 @@
 import type { NextConfig } from "next"
 
-// Cloudflare Workers has no Node.js image optimizer (no `sharp`). Two safe modes:
+// Static export for Cloudflare Pages: `next build` writes the whole site to `out/`.
+// There is no Node.js image optimizer on Pages (no `sharp`). Two safe modes:
 //   default              -> images.unoptimized (served as-is, works everywhere)
 //   CF transform enabled -> custom loader hitting Cloudflare's /cdn-cgi/image/
 // Flip with NEXT_PUBLIC_CF_IMAGE_TRANSFORM=1 once the zone has "Transformations".
 const cfTransform = process.env.NEXT_PUBLIC_CF_IMAGE_TRANSFORM === "1"
 
 const nextConfig: NextConfig = {
+  output: "export",
   images: cfTransform
     ? {
         loader: "custom",
@@ -32,9 +34,3 @@ const nextConfig: NextConfig = {
 }
 
 export default nextConfig
-
-// Enables Cloudflare bindings (and OpenNext integration) during local
-// `next dev`. Harmless in production builds. See:
-// https://opennext.js.org/cloudflare/get-started
-import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare"
-initOpenNextCloudflareForDev()
