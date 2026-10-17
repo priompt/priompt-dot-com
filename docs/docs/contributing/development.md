@@ -69,7 +69,7 @@ A request flows: agent → gRPC → auth interceptor → `Server.GetPrompt` → 
 ## Dev data
 
 ```sh
-cd priompt && ./priompt serve -db dev.db
+cd priompt && make build && ./priompt serve -db dev.db   # priompt.exe on Windows
 sh seed-dev.sh localhost:8443     # prompts with real commit history (uses publish)
 ```
 

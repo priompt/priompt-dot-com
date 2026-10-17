@@ -10,7 +10,7 @@ Everything is set with flags on `priompt serve`, and most flags have an environm
 
 | Variable | Used by | Purpose |
 | --- | --- | --- |
-| `PRIOMPT_URL` | CLI, Python, Node | `priompt://<token>@host:port`: one string for both address and credential |
+| `PRIOMPT_URL` | CLI, Python, Node, web UI | `priompt://<token>@host:port`: one string for both address and credential |
 | `PRIOMPT_TOKEN` | server, CLIs, web UI | admin write token (server) or credential (clients) |
 | `PRIOMPT_SEED` | server | `false` turns off the demo prompt seeded on first start |
 | `PRIOMPT_EMBED_URL` | server, `put`, promptctl | OpenAI-compatible `/v1/embeddings` endpoint |
@@ -20,12 +20,14 @@ Everything is set with flags on `priompt serve`, and most flags have an environm
 | `PRIOMPT_JWKS_URL` | server | priompt-auth `/jwks` URL. When set, the server accepts its JWTs. |
 | `PRIOMPT_ENCRYPTION_KEY` | server, `put`, `backup`, … | base64 of 32 bytes. Turns on AES-256-GCM at rest. |
 | `PRIOMPT_NATS_TOKEN` | server | credential required of NATS clients |
-| `PRIOMPT_NATS_URL` | `priompt watch` | broker URL to subscribe to |
+| `PRIOMPT_NATS_URL` | `priompt watch`, web UI | broker URL to subscribe to (in the web UI, turns on the Live badge) |
 | `PRIOMPT_NATS_ROUTES` | server | comma-separated cluster peers |
 | `PRIOMPT_NATS_CLUSTER_ADDR` | server | cluster route listen address |
 | `PRIOMPT_NATS_CLUSTER_SECRET` | server | shared secret for cluster peers |
 | `PRIOMPT_GIT_TOKEN` | promptctl | token for HTTPS git remotes |
-| `PRIOMPT_ADDR` | web UI | server address (default `localhost:8443`) |
+| `PRIOMPT_HOST` | web UI | server address; wins over the host in `PRIOMPT_URL` |
+| `PRIOMPT_TLS` | web UI | `true` connects over TLS |
+| `PRIOMPT_ORG` | web UI | org to list when the token is org-scoped |
 
 ### `PRIOMPT_URL` precedence
 
