@@ -20,12 +20,12 @@ Priompt is working, pre-release software, currently **v0.7**, and all 22 end-to-
 
 ## Before the first public release
 
-- [ ] Final registry names: Docker image, PyPI distribution, npm package
+- [x] Registry names: `ghcr.io/priompt/priompt`, `priompt-sdk` (PyPI), `@priompt/client` (npm)
 - [ ] Public Go module paths (replace `priomptproto`, `priomptdb`, `priomptauth`, and drop the `replace` directives)
-- [ ] License
+- [x] License (Apache-2.0)
 - [ ] Prebuilt binaries for Linux, macOS, and Windows
 
-Once the names are picked, tag `v*` and the existing release workflows publish to GHCR and PyPI.
+Tagging `v*` on the server repo publishes the multi-arch image to GHCR (first release: `v0.7.0`).
 
 ## Known gaps
 

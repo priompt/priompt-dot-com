@@ -83,7 +83,7 @@ Add `.exe` to the output names on Windows.
 ## SDKs from the checkout
 
 ```sh
-pip install -e ../python-sdk            # imports as `priompt`
+pip install -e ../python-sdk            # imports as `priompt_sdk`
 pip install -e "../python-sdk[nats]"    # + subscribe()
 
 cd ../js-sdk && npm install             # then require("./client.js") or npm link

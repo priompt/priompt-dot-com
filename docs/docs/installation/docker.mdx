@@ -8,6 +8,8 @@ The image is a static Go binary on `alpine:3.20`. It exposes `8443` (gRPC), `211
 
 ## Run the published image
 
+Images are published to GHCR for `linux/amd64` and `linux/arm64`, tagged per release (`:v0.7.0`) and `:latest`. Pin a version tag in production. `docker run --rm <image> version` prints the build, and `/metrics` exposes it as `priompt_build_info`.
+
 <Cmd lang="sh">{`
 docker run -d --name priompt \\
   -p 8443:8443 \\
@@ -31,9 +33,9 @@ docker exec -it priompt priompt list -addr localhost:8443
 docker exec -it priompt priompt backup -db /data/priompt.db -out /data/snapshot.jsonl
 ```
 
-## Build and run with Compose (works today)
+## Build from source with Compose
 
-Until the image is published, build it from the source checkout. The build context is the **parent** directory, because the server's `go.mod` points at the sibling `proto`, `db-adapters`, and `auth` modules. Clone them side by side first ([From source](./from-source.md#get-the-code)), then:
+To run unreleased changes, build the image from the source checkout. The build context is the **parent** directory, because the server's `go.mod` points at the sibling `proto`, `db-adapters`, and `auth` modules. Clone them side by side first ([From source](./from-source.md#get-the-code)), then:
 
 ```sh
 cd priompt

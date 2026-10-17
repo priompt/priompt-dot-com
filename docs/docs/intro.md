@@ -59,7 +59,7 @@ You only need the server. Everything else is opt-in.
 | **priompt** | `priompt` server binary | The core. It stores, versions, validates, serves, and distributes prompts over gRPC, and embeds a NATS broker for change push. The same binary is also the ops CLI. |
 | **promptctl** | `promptctl` binary | The authoring tool. Prompts live as files in a git repo, get validated on commit, are diffed semantically before shipping, and publish in one step. |
 | **priompt-auth** | `priompt-auth` binary | Exchanges an SSO login or a service-account secret for a short-lived JWT, which the server verifies offline. |
-| **Python SDK** | pip package (imports as `priompt`) | `get` / `list` / `diff` / `subscribe`, with an optional local cache and version pinning. |
+| **Python SDK** | pip package `priompt-sdk` (imports as `priompt_sdk`) | `get` / `list` / `diff` / `subscribe`, with an optional local cache and version pinning. |
 | **JavaScript SDK** | npm package | `get` / `diff` / `publish` / `subscribe`. No codegen. |
 | **Web UI** | SvelteKit app | Browse prompts, history, and diffs, and edit prompts in a browser. |
 | **proto** | Go module `priomptproto` | The shared contracts: the gRPC API, JWT claims, validation rules, and the semantic diff engine. |
@@ -73,5 +73,5 @@ You only need the server. Everything else is opt-in.
 - **See who it's for:** [Use cases](./guides/use-cases.md)
 
 :::info Pre-release
-Priompt works today: all 22 end-to-end suites pass. The Docker, PyPI, and npm names and the public Go module paths are still placeholders, and so is the license. Commands that use an unfinished name are marked on each page.
+Priompt works today: all 22 end-to-end suites pass. The server image (`ghcr.io/priompt/priompt`), Python SDK (`priompt-sdk`), and JS SDK (`@priompt/client`) are published, under Apache-2.0. The public Go module paths are still placeholders.
 :::

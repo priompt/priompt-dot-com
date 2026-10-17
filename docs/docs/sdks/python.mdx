@@ -9,16 +9,16 @@ This is the library your Python app imports to fetch its prompts by address, and
 ## Install
 
 <Cmd lang="sh">{`
-pip install {{pypiName}}            # imports as \`priompt\`
+pip install {{pypiName}}            # imports as \`priompt_sdk\`
 pip install "{{pypiName}}[nats]"    # add the [nats] extra if you use subscribe()
 `}</Cmd>
 
-Whatever the distribution ends up being called, the import is always `from priompt import PromptClient`.
+The distribution is <Var name="pypiName" /> on PyPI; the import is `from priompt_sdk import PromptClient`.
 
 ## First prompt
 
 ```python
-from priompt import PromptClient
+from priompt_sdk import PromptClient
 
 client = PromptClient(host="localhost:8443")      # token="…" if auth is on
 prompt = client.get("priompt://acme/onboarding/welcome")
@@ -112,11 +112,11 @@ PromptClient(host="prompts.internal:8443", token="…", tls=True,
 
 ## Branches, merges, rollback
 
-These aren't wrapped by the client yet. Use the generated stubs in `priompt.v1`, which are what any language sees:
+These aren't wrapped by the client yet. Use the generated stubs in `priompt_sdk.v1`, which are what any language sees:
 
 ```python
 import grpc
-from priompt.v1 import prompt_pb2 as pb, prompt_pb2_grpc as rpc
+from priompt_sdk.v1 import prompt_pb2 as pb, prompt_pb2_grpc as rpc
 
 stub = rpc.PromptServiceStub(grpc.insecure_channel("localhost:8443"))
 stub.CreateBranch(pb.CreateBranchRequest(uri=uri, name="feat", **{"from": "main"}))

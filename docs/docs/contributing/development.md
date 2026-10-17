@@ -15,7 +15,7 @@ Priompt is a family of small repos, each doing one job:
 | `auth` | `priompt-auth` binary + the `priomptauth/authn` package | Go |
 | `db-adapters` | Go module `priomptdb`: SQLite/Postgres storage | Go |
 | `cli` | `promptctl` | Go |
-| `python-sdk` | pip package (imports as `priompt`) | Python |
+| `python-sdk` | pip package `priompt-sdk` (imports as `priompt_sdk`) | Python |
 | `js-sdk` | npm package | Node |
 | `ui` | web front end | SvelteKit |
 | `priompt-dot-com` | marketing site + these docs | Next.js + Docusaurus |

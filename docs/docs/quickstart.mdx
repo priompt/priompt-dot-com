@@ -15,7 +15,7 @@ On first start the server seeds a demo prompt, so you can fetch something right 
 # 1. run the server
 docker run -d --name priompt -p 8443:8443 -v priompt-data:/data {{dockerImage}}
 
-# 2. install the Python client (it imports as \`priompt\`)
+# 2. install the Python client (it imports as \`priompt_sdk\`)
 pip install {{pypiName}}
 `}</Cmd>
 
@@ -37,11 +37,9 @@ echo "Hi {name}, welcome to {org}!" > welcome.txt
 ./priompt serve -addr :8443
 ```
 
-In a second terminal, install the Python client from the checkout:
+In a second terminal, install the Python client:
 
-```sh
-pip install -e ../python-sdk
-```
+<Cmd lang="sh">{`pip install {{pypiName}}`}</Cmd>
 
 </TabItem>
 </Tabs>
@@ -52,7 +50,7 @@ pip install -e ../python-sdk
 <TabItem value="py" label="Python" default>
 
 ```python
-from priompt import PromptClient
+from priompt_sdk import PromptClient
 
 client = PromptClient(host="localhost:8443")
 prompt = client.get("priompt://acme/onboarding/welcome")
