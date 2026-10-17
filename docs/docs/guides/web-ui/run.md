@@ -1,8 +1,9 @@
 ---
-title: Web UI
+title: Run the web UI
+sidebar_label: Run it
+description: "Install the web UI, point it at a Priompt server, and load sample prompts."
+doc_type: how-to
 ---
-
-# Web UI
 
 The web UI lets you browse, edit, and publish prompts in the browser. You can read every version of a prompt, check the semantic impact of an edit before you publish it, and branch, promote, and roll back.
 
@@ -10,7 +11,7 @@ It's a SvelteKit app. Browsers can't speak gRPC, so the app's server side calls 
 
 ## Run it
 
-You need Node 20+, pnpm, and a running Priompt server (see [Quick start](../quickstart.mdx)).
+You need Node 20+, pnpm, and a running Priompt server (see [Quick start](../../quickstart.mdx)).
 
 ```sh
 git clone https://github.com/priompt/ui.git && cd ui

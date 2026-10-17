@@ -1,12 +1,13 @@
 import type { SidebarsConfig } from "@docusaurus/plugin-content-docs"
 
+// One sidebar per navbar tab. Nesting stays at tab > category > page.
 const sidebars: SidebarsConfig = {
-  docs: [
+  start: [
     "intro",
     "quickstart",
     {
       type: "category",
-      label: "Installation",
+      label: "Install",
       link: { type: "doc", id: "installation/index" },
       items: [
         "installation/docker",
@@ -16,44 +17,71 @@ const sidebars: SidebarsConfig = {
         "installation/from-source",
       ],
     },
+    "use-cases",
+    "roadmap",
+  ],
+  guides: [
     {
       type: "category",
       label: "Concepts",
-      items: ["concepts/prompts", "concepts/versioning", "concepts/live-updates", "concepts/semantic-diff"],
-    },
-    {
-      type: "category",
-      label: "Guides",
-      items: ["guides/use-cases", "guides/promptctl", "guides/sso", "guides/web-ui"],
-    },
-    {
-      type: "category",
-      label: "Client SDKs",
-      items: ["sdks/python", "sdks/javascript", "sdks/other-languages"],
-    },
-    {
-      type: "category",
-      label: "Operations",
+      link: { type: "generated-index" },
       items: [
-        "operations/configuration",
-        "operations/security",
-        "operations/storage",
-        "operations/caching",
-        "operations/monitoring",
-        "operations/scaling",
+        "concepts/architecture",
+        "concepts/prompts",
+        "concepts/versioning",
+        "concepts/live-updates",
+        "concepts/semantic-diff",
+        "concepts/access-control",
       ],
     },
     {
       type: "category",
-      label: "Reference",
-      items: ["reference/cli", "reference/promptctl", "reference/priompt-auth", "reference/grpc-api"],
+      label: "Author prompts",
+      items: ["guides/promptctl", "guides/ci", "guides/embedding-model"],
     },
     {
       type: "category",
-      label: "Contributing",
-      items: ["contributing/development", "contributing/proto", "contributing/db-adapters", "contributing/testing"],
+      label: "Serve prompts to agents",
+      items: ["guides/branch-pin-rollback", "guides/hot-reload", "guides/ab-test"],
     },
-    "roadmap",
+    {
+      type: "category",
+      label: "Web UI",
+      link: { type: "doc", id: "guides/web-ui/index" },
+      items: [
+        "guides/web-ui/run",
+        "guides/web-ui/browse",
+        "guides/web-ui/edit-and-publish",
+        "guides/web-ui/review-commit",
+        "guides/web-ui/branches",
+      ],
+    },
+    { type: "category", label: "Access", items: ["guides/sso"] },
+    "guides/troubleshooting",
+  ],
+  sdks: ["sdks/index", "sdks/python", "sdks/javascript", "sdks/other-languages"],
+  operate: [
+    "operations/production-checklist",
+    "operations/security",
+    "operations/storage",
+    "operations/caching",
+    "operations/monitoring",
+    "operations/scaling",
+  ],
+  reference: [
+    { type: "category", label: "CLI", items: ["reference/cli", "reference/promptctl", "reference/priompt-auth"] },
+    "reference/configuration",
+    "reference/grpc-api",
+    "reference/errors",
+    "reference/glossary",
+    "reference/changelog",
+  ],
+  contribute: [
+    "contributing/development",
+    "contributing/proto",
+    "contributing/db-adapters",
+    "contributing/testing",
+    "contributing/docs",
   ],
 }
 

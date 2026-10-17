@@ -27,7 +27,7 @@ title: Use cases
 Authors use promptctl, agents subscribe, and the server uses a real embedding model. A safe rewording auto-reloads across the fleet in about a second. A policy inversion comes back as `structural`: agents hold their current version and a human gets paged.
 
 **"We A/B test prompt variants."**
-Publish the candidate to a branch and have cohort B read `ref="feat"`. `MergeBranch` ships the winner, and `SetBranch` reverts it. See [Versioning](../concepts/versioning.md#example-ab-test-a-prompt).
+Publish the candidate to a branch and have cohort B read `ref="feat"`. `MergeBranch` ships the winner, and `SetBranch` reverts it. See [Versioning](./concepts/versioning.md#example-ab-test-a-prompt).
 
 **"Compliance asks who can read prompts, who changed them, and whether they're encrypted."**
 Org-scoped tokens and JWTs answer *who can*. Commit authorship and the JSON audit log answer *who did*. `PRIOMPT_ENCRYPTION_KEY` covers *at rest*, and Prometheus counts every denial by gRPC code.

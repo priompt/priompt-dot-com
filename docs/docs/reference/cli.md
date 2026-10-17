@@ -34,7 +34,7 @@ The client commands (`publish`, `diff`, `list`) default `-addr` to the host in `
 
 ## serve
 
-See [Configuration](../operations/configuration.md#serve-flags) for every flag.
+See [Configuration](./configuration.md#serve-flags) for every flag.
 
 ## put
 
