@@ -62,8 +62,8 @@ You only need the server. Everything else is opt-in.
 | **Python SDK** | pip package `priompt-sdk` (imports as `priompt_sdk`) | `get` / `list` / `diff` / `subscribe`, with an optional local cache and version pinning. |
 | **JavaScript SDK** | npm package | `get` / `diff` / `publish` / `subscribe`. No codegen. |
 | **Web UI** | SvelteKit app | Browse prompts, history, and diffs, and edit prompts in a browser. |
-| **proto** | Go module `priomptproto` | The shared contracts: the gRPC API, JWT claims, validation rules, and the semantic diff engine. |
-| **db-adapters** | Go module `priomptdb` | The storage engine as a library: SQLite and PostgreSQL, with optional encryption at rest. |
+| **proto** | Go module `github.com/priompt/proto` | The shared contracts: the gRPC API, JWT claims, validation rules, and the semantic diff engine. |
+| **db-adapters** | Go module `github.com/priompt/db-adapters` | The storage engine as a library: SQLite and PostgreSQL, with optional encryption at rest. |
 
 ## Where to go next
 
@@ -73,5 +73,5 @@ You only need the server. Everything else is opt-in.
 - **See who it's for:** [Use cases](./guides/use-cases.md)
 
 :::info Pre-release
-Priompt works today: all 22 end-to-end suites pass. The server image (`ghcr.io/priompt/priompt`), Python SDK (`priompt-sdk`), and JS SDK (`@priompt/client`) are published, under Apache-2.0. The public Go module paths are still placeholders.
+Priompt works today: all 22 end-to-end suites pass. The server image (`ghcr.io/priompt/priompt`), Python SDK (`priompt-sdk`), and JS SDK (`@priompt/client`) are published, under Apache-2.0. The Go modules are published under `github.com/priompt/*`, so `go install` works.
 :::

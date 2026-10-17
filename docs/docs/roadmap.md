@@ -21,7 +21,7 @@ Priompt is working, pre-release software, currently **v0.7**, and all 22 end-to-
 ## Before the first public release
 
 - [x] Registry names: `ghcr.io/priompt/priompt`, `priompt-sdk` (PyPI), `@priompt/client` (npm)
-- [ ] Public Go module paths (replace `priomptproto`, `priomptdb`, `priomptauth`, and drop the `replace` directives)
+- [x] Public Go module paths: `github.com/priompt/{proto,db-adapters,auth,priompt,cli}`, no `replace` directives
 - [x] License (Apache-2.0)
 - [ ] Prebuilt binaries for Linux, macOS, and Windows
 

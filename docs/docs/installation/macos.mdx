@@ -14,9 +14,7 @@ Works on Apple Silicon (arm64) and Intel (amd64), macOS 12+.
 ```sh
 brew install go git          # Go 1.25+
 
-mkdir -p ~/src && cd ~/src
-for r in priompt proto db-adapters auth; do git clone https://github.com/priompt/$r.git; done
-cd priompt && go build -o priompt ./cmd/priompt
+GOBIN=$PWD go install github.com/priompt/priompt/cmd/priompt@latest     # builds ./priompt, no clone needed
 
 sudo install -m 0755 priompt /usr/local/bin/priompt
 priompt migrate -db /tmp/check.db   # sanity check
@@ -119,8 +117,7 @@ priompt list
 ## Upgrade
 
 ```sh
-cd ~/src && for r in priompt proto db-adapters auth; do git -C $r pull; done
-cd priompt && go build -o priompt ./cmd/priompt && sudo install -m 0755 priompt /usr/local/bin/priompt
+GOBIN=$PWD go install github.com/priompt/priompt/cmd/priompt@latest && sudo install -m 0755 priompt /usr/local/bin/priompt
 launchctl kickstart -k gui/$(id -u)/com.priompt.server
 ```
 

@@ -11,9 +11,9 @@ Priompt is a family of small repos, each doing one job:
 | Repo | Ships | Language |
 | --- | --- | --- |
 | `priompt` | server + ops CLI | Go |
-| `proto` | Go module `priomptproto`: the gRPC contract + stubs, JWT claims, `validate`, `semdiff` | Go + protobuf |
-| `auth` | `priompt-auth` binary + the `priomptauth/authn` package | Go |
-| `db-adapters` | Go module `priomptdb`: SQLite/Postgres storage | Go |
+| `proto` | Go module `github.com/priompt/proto`: the gRPC contract + stubs, JWT claims, `validate`, `semdiff` | Go + protobuf |
+| `auth` | `priompt-auth` binary + the `github.com/priompt/auth/authn` package | Go |
+| `db-adapters` | Go module `github.com/priompt/db-adapters`: SQLite/Postgres storage | Go |
 | `cli` | `promptctl` | Go |
 | `python-sdk` | pip package `priompt-sdk` (imports as `priompt_sdk`) | Python |
 | `js-sdk` | npm package | Node |
@@ -41,12 +41,12 @@ Authentication (credentials, JWT minting and verification, the tokens file, the 
 
 ## Setup
 
-Clone the family side by side (see [From source](../installation/from-source.md#get-the-code)). The Go repos use `replace` directives such as `replace priomptproto => ../proto` until the modules are published.
+Clone the family side by side and add a `go.work` so your local edits to one module are used by the others (see [From source](../installation/from-source.md#get-the-code)). Without it, each repo builds against the published, tagged versions in its `go.mod`.
 
 ```sh
 cd priompt   && make build && make test
-cd ../auth   && go build -o priompt-auth . && go test ./...
-cd ../cli    && go build -o promptctl .    && go test ./...
+cd ../auth   && go build -o priompt-auth ./cmd/priompt-auth && go test ./...
+cd ../cli    && go build -o promptctl ./cmd/promptctl       && go test ./...
 cd ../python-sdk && python -m venv venv && venv/bin/pip install -e . pytest && venv/bin/pytest -q
 cd ../js-sdk && npm install
 ```

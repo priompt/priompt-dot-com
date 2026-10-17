@@ -16,7 +16,7 @@ flowchart LR
     S -.->|"change notification"| A["Agents"]
 ```
 
-Build it with `go build -o promptctl .` in the `cli` repo (see [From source](../installation/from-source.md#promptctl-and-priompt-auth)). Git is embedded through go-git, so you don't need a `git` binary.
+Install it with `go install github.com/priompt/cli/cmd/promptctl@latest` (see [From source](../installation/from-source.md#promptctl-and-priompt-auth)). Git is embedded through go-git, so you don't need a `git` binary.
 
 ## Files are prompts
 

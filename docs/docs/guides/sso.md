@@ -29,7 +29,7 @@ sequenceDiagram
 ## Set it up
 
 ```sh
-go build -o priompt-auth .        # in the auth repo; Go 1.25+
+go install github.com/priompt/auth/cmd/priompt-auth@latest   # Go 1.25+
 
 ./priompt-auth init               # one-time: Ed25519 signing key -> auth.key
 
@@ -88,7 +88,7 @@ Tested end to end against Keycloak 26. If you use Keycloak, note that users crea
 
 ## What a token contains
 
-The token is a compact EdDSA (Ed25519) JWT. The claims contract lives once, in `priomptproto/claims`:
+The token is a compact EdDSA (Ed25519) JWT. The claims contract lives once, in `github.com/priompt/proto/claims`:
 
 | Claim | Example | Meaning |
 | --- | --- | --- |

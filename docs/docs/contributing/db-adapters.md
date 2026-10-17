@@ -4,10 +4,10 @@ title: Storage engine (db-adapters)
 
 # The storage engine (db-adapters)
 
-`priomptdb` is the one copy of the storage engine. The server imports it, and any Go program can use it without a server.
+`github.com/priompt/db-adapters` is the one copy of the storage engine. The server imports it, and any Go program can use it without a server.
 
 ```go
-import store "priomptdb"
+import store "github.com/priompt/db-adapters"
 
 st, _ := store.Open("prompts.db")                  // a file path -> SQLite
 st, _ := store.Open("postgres://user:pw@host/db")  // a postgres:// DSN -> PostgreSQL

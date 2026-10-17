@@ -38,7 +38,7 @@ js-sdk       node --check client.js
 
 T1–T4 need no server. T5–T12 need one `priompt serve`. T13 adds `priompt-auth serve`, and T17 needs openssl. T18–T22 need Docker (`postgres:16-alpine`, `redis:7-alpine`, `text-embeddings-inference:cpu-1.6`, `keycloak:26.0`).
 
-The only thing the runbook doesn't exercise is registry publishing, which is blocked on the placeholder names.
+The only thing the runbook doesn't exercise is registry publishing, which the release workflows do on a tag.
 
 ## Stress numbers (single SQLite node, laptop)
 

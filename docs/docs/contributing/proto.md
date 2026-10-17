@@ -37,4 +37,4 @@ Changes to `claims/`, `validate/`, or `semdiff/` don't need step 4. The Go consu
 
 - **js-sdk keeps a vendored copy** of the `.proto`, because an npm package has to be self-contained. `sync-proto` refreshes it; don't edit it by hand.
 - **python-sdk commits its generated stubs** so the wheel ships them.
-- The module path `priomptproto` is a placeholder until the first release. After that, the `replace` directives drop.
+- The module path is `github.com/priompt/proto`, released with `v*` tags. Dependents pin a version in `go.mod`. Use a `go.work` to try an unreleased change across repos, then tag proto and bump the dependents.

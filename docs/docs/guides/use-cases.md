@@ -16,7 +16,7 @@ title: Use cases
 | **Security / IT admin** | `priompt-auth` + IdP | SSO, service accounts, 15-minute credentials, offboarding through IdP groups |
 | **CI/CD pipeline** | `promptctl` or an SDK + a service-account JWT | Automated validation and publishing when changes merge |
 | **Reviewer / team lead** | `priompt diff`, `promptctl diff`, `DiffCommits` | Tell a safe tweak from a structural rewrite |
-| **Tool builder** | `priomptdb`, `priomptproto` | Versioned, encrypted storage and the validation and diff engines, all as Go libraries with no server |
+| **Tool builder** | `github.com/priompt/db-adapters`, `github.com/priompt/proto` | Versioned, encrypted storage and the validation and diff engines, all as Go libraries with no server |
 
 ## Scenarios
 
@@ -39,7 +39,7 @@ Prompts live in a git repo. PRs run `promptctl commit` (validation) and `promptc
 Orgs are the first URI segment. An `acme` token can't see `priompt://other/…`, write access is opt-in per token, and per-org rate limits stop one team from starving another.
 
 **"I'm building my own prompt tool in Go."**
-Use `priomptdb` for versioned, encrypted storage, `priomptproto/validate` for the server's exact validity rules, and `priomptproto/semdiff` for the diff engine. No server is needed.
+Use `github.com/priompt/db-adapters` for versioned, encrypted storage, `github.com/priompt/proto/validate` for the server's exact validity rules, and `github.com/priompt/proto/semdiff` for the diff engine. No server is needed.
 
 ## Three reference profiles
 

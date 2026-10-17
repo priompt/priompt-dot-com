@@ -22,20 +22,34 @@ Installing Go:
 - **macOS:** `brew install go`
 - **Windows:** `winget install GoLang.Go`
 
+## Install with `go install`
+
+The Go modules are published under `github.com/priompt/*`, so no clone is needed:
+
+```sh
+go install github.com/priompt/priompt/cmd/priompt@latest        # server
+go install github.com/priompt/cli/cmd/promptctl@latest          # authoring CLI
+go install github.com/priompt/auth/cmd/priompt-auth@latest      # token issuer
+```
+
+Binaries land in `$(go env GOPATH)/bin`. Pin a release with `@v0.7.1` instead of `@latest`.
+
 ## Get the code
 
-The Go modules aren't published yet, so the server's `go.mod` uses `replace` directives pointing at **sibling directories**. Clone the family side by side under one parent:
+Clone only the repo you're changing. Each one builds on its own and fetches the others from the Go module proxy at the versions pinned in its `go.mod`. To change several at once, clone them side by side and add a workspace so local edits win:
 
 ```sh
 mkdir priompt-family && cd priompt-family
 for r in priompt proto db-adapters auth cli python-sdk js-sdk; do
   git clone https://github.com/priompt/$r.git
 done
+go work init ./priompt ./proto ./db-adapters ./auth ./cli
 ```
 
 ```text
 priompt-family/
-├── priompt/       # the server (needs proto, db-adapters, auth to build)
+├── go.work        # local workspace: don't commit it
+├── priompt/       # the server
 ├── proto/         # shared contract + validate + semdiff
 ├── db-adapters/   # storage engine
 ├── auth/          # priompt-auth + the authn package the server imports
@@ -44,7 +58,7 @@ priompt-family/
 └── js-sdk/
 ```
 
-The server needs the `auth` checkout to **build**, because it imports `priomptauth/authn` for credential handling. It doesn't need the `priompt-auth` service to **run**.
+The server imports `github.com/priompt/auth/authn` for credential handling. It doesn't need the `priompt-auth` service to **run**.
 
 ## Build the server
 
@@ -74,8 +88,8 @@ In PowerShell, set the variables first: `$env:GOOS="linux"; $env:GOARCH="amd64";
 ## promptctl and priompt-auth
 
 ```sh
-cd ../cli  && go build -o promptctl .       # authoring CLI
-cd ../auth && go build -o priompt-auth .    # token issuer (SSO / service accounts)
+cd ../cli  && go build -o promptctl ./cmd/promptctl         # authoring CLI
+cd ../auth && go build -o priompt-auth ./cmd/priompt-auth   # token issuer (SSO / service accounts)
 ```
 
 Add `.exe` to the output names on Windows.

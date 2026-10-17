@@ -14,10 +14,7 @@ Works on Windows 10/11 and Windows Server 2019+, amd64. All commands below are *
 ```powershell
 winget install GoLang.Go Git.Git      # Go 1.25+; open a new terminal afterwards
 
-mkdir $HOME\src; cd $HOME\src
-foreach ($r in "priompt","proto","db-adapters","auth") { git clone "https://github.com/priompt/$r.git" }
-cd priompt
-go build -o priompt.exe ./cmd/priompt
+$env:GOBIN = "$PWD"; go install github.com/priompt/priompt/cmd/priompt@latest     # builds .\priompt.exe, no clone needed
 
 # install system-wide
 New-Item -ItemType Directory -Force "C:\Program Files\Priompt" | Out-Null
@@ -116,8 +113,7 @@ priompt list
 ## Upgrade
 
 ```powershell
-cd $HOME\src; foreach ($r in "priompt","proto","db-adapters","auth") { git -C $r pull }
-cd priompt; go build -o priompt.exe ./cmd/priompt
+$env:GOBIN = "$PWD"; go install github.com/priompt/priompt/cmd/priompt@latest
 nssm stop Priompt
 priompt backup -db C:\ProgramData\Priompt\priompt.db -out C:\ProgramData\Priompt\pre-upgrade.jsonl
 Copy-Item priompt.exe "C:\Program Files\Priompt\" -Force

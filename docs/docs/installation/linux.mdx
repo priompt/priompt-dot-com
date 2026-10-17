@@ -17,10 +17,8 @@ curl -LO https://go.dev/dl/go1.25.0.linux-amd64.tar.gz      # use linux-arm64 on
 sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.25.0.linux-amd64.tar.gz
 export PATH=$PATH:/usr/local/go/bin
 
-# clone the family side by side, then build
-mkdir -p ~/src && cd ~/src
-for r in priompt proto db-adapters auth; do git clone https://github.com/priompt/$r.git; done
-cd priompt && CGO_ENABLED=0 go build -o priompt ./cmd/priompt
+# build into the current directory (no clone needed)
+CGO_ENABLED=0 GOBIN=$PWD go install github.com/priompt/priompt/cmd/priompt@latest
 
 sudo install -m 0755 priompt /usr/local/bin/priompt
 priompt migrate -db /tmp/check.db   # sanity check: "schema up to date"
@@ -137,8 +135,7 @@ PromptClient().get("priompt://acme/onboarding/welcome")   # reads PRIOMPT_URL
 ## Upgrade
 
 ```sh
-cd ~/src && for r in priompt proto db-adapters auth; do git -C $r pull; done
-cd priompt && CGO_ENABLED=0 go build -o priompt ./cmd/priompt
+CGO_ENABLED=0 GOBIN=$PWD go install github.com/priompt/priompt/cmd/priompt@latest
 sudo sh -c 'set -a; . /etc/priompt/priompt.env; priompt backup -db /var/lib/priompt/priompt.db -out /var/lib/priompt/pre-upgrade.jsonl'   # env carries the encryption key
 sudo install -m 0755 priompt /usr/local/bin/priompt
 sudo systemctl restart priompt      # pending schema migrations run on start

@@ -47,7 +47,7 @@ A one-line edit that turns *"offer a refund when reasonable"* into *"never offer
 
 ## Where it runs
 
-The same engine (`priomptproto/semdiff`) powers all of these:
+The same engine (`github.com/priompt/proto/semdiff`) powers all of these:
 
 | Surface | Compares |
 | --- | --- |

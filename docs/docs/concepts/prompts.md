@@ -42,7 +42,7 @@ A prompt is valid when:
 
 Placeholders match `{word}`: letters, digits, and underscores.
 
-The **same function** (`priomptproto/validate`) runs when a prompt is written *and* when it's served. A malformed prompt can never reach an agent, even from a corrupted database. At serve time a failure returns `DataLoss` rather than bad text.
+The **same function** (`github.com/priompt/proto/validate`) runs when a prompt is written *and* when it's served. A malformed prompt can never reach an agent, even from a corrupted database. At serve time a failure returns `DataLoss` rather than bad text.
 
 ```sh
 priompt put -uri priompt://acme/bad/x -file welcome.txt -slot name

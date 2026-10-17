@@ -35,7 +35,7 @@ docker exec -it priompt priompt backup -db /data/priompt.db -out /data/snapshot.
 
 ## Build from source with Compose
 
-To run unreleased changes, build the image from the source checkout. The build context is the **parent** directory, because the server's `go.mod` points at the sibling `proto`, `db-adapters`, and `auth` modules. Clone them side by side first ([From source](./from-source.md#get-the-code)), then:
+To run unreleased changes, build the image from a clone of the server repo. It needs nothing else checked out: the other Go modules come from the module proxy.
 
 ```sh
 cd priompt
@@ -47,9 +47,7 @@ docker compose up --build -d
 ```yaml
 services:
   priompt:
-    build:
-      context: ..                      # parent dir: go.mod replaces point at sibling modules
-      dockerfile: priompt/Dockerfile
+    build: .
     ports:
       - "8443:8443"               # gRPC
       - "127.0.0.1:2112:2112"     # Prometheus /metrics: keep off the public interface
