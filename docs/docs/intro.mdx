@@ -1,40 +1,75 @@
 ---
 slug: /
-title: What is Priompt?
-sidebar_label: Introduction
+title: Priompt overview
+sidebar_label: Overview
+description: Priompt is a prompt server that versions, validates, and serves prompts by address and pushes every change to the agents that use them.
+doc_type: overview
 ---
 
-# What is Priompt?
+import Link from "@docusaurus/Link"
 
-**Priompt stores your AI prompts. It versions and validates them, serves each one by its address, and pushes changes live to every agent that uses them.**
+export const cards = [
+  { title: "Quickstart", to: "/quickstart", body: "Run a server, fetch a prompt, and watch a change arrive in about ten minutes." },
+  { title: "Install", to: "/installation", body: "Run the server with Docker, on Linux, macOS, or Windows, or build it from source." },
+  { title: "Concepts", to: "/concepts/prompts", body: "Addresses, versioning, live updates, and the semantic diff." },
+  { title: "Client SDKs", to: "/sdks", body: "Fetch prompts and subscribe to changes from Python, Node, or any gRPC language." },
+  { title: "Web UI", to: "/guides/web-ui", body: "Browse, edit, and review prompts in a browser." },
+  { title: "Self-host", to: "/operations/production-checklist", body: "Secure, back up, monitor, and scale a server." },
+]
 
-If you've ever changed a prompt, broken an agent in production, and had no idea what the old prompt said, Priompt is for you. Code solved this long ago with Git: every change is recorded and you can always roll back. Priompt does that job for **prompts**, and adds two things Git can't do:
+**Priompt is a prompt server: it stores, versions, and validates your AI prompts, serves each one by its address, and tells every agent the moment a prompt changes.**
 
-1. **A semantic diff.** It judges what an edit *means*. Is it a harmless rewording, or a structural change that rewires how the prompt behaves?
-2. **Live distribution.** Agents hear about a change the moment it happens, *with that verdict attached*. They can hot-reload safe edits and hold risky ones for a human.
+A prompt edit can break an agent in production, and without history nobody can say what the old prompt was. Priompt gives prompts what git gives code: every change is a commit, and you can always roll back. It's for teams that run agents and want prompt changes to be reviewed, versioned, and delivered like code.
 
-| Code has… | Prompts get… |
+:::info Pre-release
+Priompt is at v<Var name="version" />. The server image, both SDKs, and the Go modules are published under Apache-2.0. See [Status and roadmap](./roadmap.md) for what's done and what's missing.
+:::
+
+## Get started
+
+<div className="row">
+  {cards.map((c) => (
+    <div key={c.to} className="col col--4 margin-bottom--lg">
+      <Link to={c.to} className="card padding--md" style={{height: "100%", color: "inherit", textDecoration: "none"}}>
+        <strong>{c.title}</strong>
+        <span>{c.body}</span>
+      </Link>
+    </div>
+  ))}
+</div>
+
+## What Priompt adds
+
+Priompt adds two things that git can't do for prompts:
+
+- **Semantic diff**: Priompt scores what an edit means, from a harmless rewording to a structural change that rewires how the prompt behaves. See [Semantic diff](/concepts/semantic-diff).
+- **Live distribution**: Agents hear about a change the moment it's published, with that verdict attached. They can reload safe edits on their own and hold risky ones for a person. See [Live updates](/concepts/live-updates).
+
+| Code has | Prompts get |
 | --- | --- |
-| A Git server | A Priompt server |
-| A file path | A prompt address: `priompt://acme/onboarding/welcome` |
+| A git server | A Priompt server |
+| A file path | A prompt address, such as `priompt://acme/onboarding/welcome` |
 | Commits and branches | Commits and branches, per prompt |
-| `git diff` | A **semantic diff**: did the *meaning* change, and how far did it spread? |
-| Deploys | Live push notifications to every agent the moment a prompt changes |
+| `git diff` | A semantic diff that says whether the meaning changed, and how far |
+| Deploys | A change event to every subscribed agent |
 
-You run the server, so your prompts stay in **your** infrastructure. Your agents can be written in any language, and they fetch prompts by address instead of hard-coding them.
+You run the server, so your prompts stay in your infrastructure. Agents in any language fetch prompts by address instead of hard-coding them.
 
 ## How it fits together
+
+The diagram shows who writes prompts, where Priompt stores them, and how agents read them and hear about changes.
 
 ```mermaid
 flowchart LR
     subgraph Writers["Writing side"]
         CTL["promptctl<br/>prompts as files in git"]
-        OPS["priompt put / publish"]
+        OPS["priompt publish"]
+        UI["Web UI"]
     end
     subgraph Core["Priompt server"]
         SRV["validate · version · serve · diff"]
-        NATS["embedded NATS<br/>change push"]
-        DB[("SQLite / Postgres<br/>AES-256-GCM at rest")]
+        NATS["embedded NATS<br/>change events"]
+        DB[("SQLite or PostgreSQL<br/>optional encryption at rest")]
         SRV --- NATS
         SRV --> DB
     end
@@ -44,34 +79,34 @@ flowchart LR
         ANY["any gRPC client"]
     end
     AUTH["priompt-auth"] -.->|"short-lived JWTs,<br/>verified offline"| SRV
-    IDP["Okta / Azure AD / Keycloak"] -.->|SSO| AUTH
-    Writers -->|"publish new version"| SRV
-    SRV -->|"serve by URI"| Readers
-    NATS -.->|"'changed!' + semantic verdict"| Readers
+    Writers -->|"publish a version"| SRV
+    SRV -->|"serve by address"| Readers
+    NATS -.->|"change event + verdict"| Readers
 ```
 
-## The components
+See [How Priompt works](/concepts/architecture) for the request flow and the ports.
 
-You only need the server. Everything else is opt-in.
+## Components
 
-| Component | Ships | What it does |
+You only need the server. Everything else is optional.
+
+| Component | What it does | Docs |
 | --- | --- | --- |
-| **priompt** | `priompt` server binary | The core. It stores, versions, validates, serves, and distributes prompts over gRPC, and embeds a NATS broker for change push. The same binary is also the ops CLI. |
-| **promptctl** | `promptctl` binary | The authoring tool. Prompts live as files in a git repo, get validated on commit, are diffed semantically before shipping, and publish in one step. |
-| **priompt-auth** | `priompt-auth` binary | Exchanges an SSO login or a service-account secret for a short-lived JWT, which the server verifies offline. |
-| **Python SDK** | pip package `priompt-sdk` (imports as `priompt_sdk`) | `get` / `list` / `diff` / `subscribe`, with an optional local cache and version pinning. |
-| **JavaScript SDK** | npm package | `get` / `diff` / `publish` / `subscribe`. No codegen. |
-| **Web UI** | SvelteKit app | Browse prompts, history, and diffs, and edit prompts in a browser. |
-| **proto** | Go module `github.com/priompt/proto` | The shared contracts: the gRPC API, JWT claims, validation rules, and the semantic diff engine. |
-| **db-adapters** | Go module `github.com/priompt/db-adapters` | The storage engine as a library: SQLite and PostgreSQL, with optional encryption at rest. |
+| `priompt` | The server. It stores, versions, validates, and serves prompts over gRPC, and embeds a NATS broker for change events. The same binary is the ops CLI. Image: <Var name="dockerImage" />. | [Install](./installation/index.mdx), [CLI](/reference/cli) |
+| `promptctl` | The authoring tool. Prompts live as files in a git repo, are validated and diffed before they ship, and publish in one step. | [Author prompts in git](/guides/promptctl) |
+| `priompt-auth` | Exchanges an SSO login or a service-account secret for a short-lived JWT that the server verifies offline. | [SSO and service accounts](/guides/sso) |
+| Python SDK | <Var name="pypiName" /> on PyPI, imported as `priompt_sdk`. Get, list, diff, and subscribe, with an optional local cache. | [Python SDK](/sdks/python) |
+| Node SDK | <Var name="npmName" /> on npm. Get, diff, publish, and subscribe, with no code generation. | [JavaScript SDK](/sdks/javascript) |
+| Web UI | A browser app to browse prompts, history, and diffs, and to edit prompts. | [Web UI overview](/guides/web-ui) |
+| `proto` | The Go module `github.com/priompt/proto`: the gRPC API, JWT claims, validation rules, and the semantic diff engine. | [Change the contract](/contributing/proto) |
+| `db-adapters` | The Go module `github.com/priompt/db-adapters`: the storage engine for SQLite and PostgreSQL. | [Storage engine](/contributing/db-adapters) |
 
-## Where to go next
+The web UI shows a prompt with the slots Priompt detected in it:
 
-- **Try it now:** [Quick start](./quickstart.mdx)
-- **Install it for real:** [Linux](./installation/linux.mdx) · [macOS](./installation/macos.mdx) · [Windows](./installation/windows.mdx) · [Docker](./installation/docker.mdx)
-- **Understand the model:** [Prompts](./concepts/prompts.md) · [Versioning](./concepts/versioning.md) · [Semantic diff](./concepts/semantic-diff.md)
-- **See who it's for:** [Use cases](./use-cases.md)
+![A prompt open in the web UI, with its four-line template on the left and the detected slots org and name on the right](/img/ui/03-prompt-viewer.png)
 
-:::info Pre-release
-Priompt works today: all 22 end-to-end suites pass. The server image (`ghcr.io/priompt/priompt`), Python SDK (`priompt-sdk`), and JS SDK (`@priompt/client`) are published, under Apache-2.0. The Go modules are published under `github.com/priompt/*`, so `go install` works.
-:::
+## Next steps
+
+- [Quickstart](./quickstart.mdx): run a server and watch a change arrive.
+- [Use cases](./use-cases.md): see the problems teams solve with Priompt.
+- [Install Priompt](./installation/index.mdx): pick Docker or a native service.

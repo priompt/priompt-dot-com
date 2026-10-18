@@ -1,10 +1,23 @@
 ---
 title: Live updates
+sidebar_label: Live updates
+description: How Priompt pushes a notification with a semantic verdict to subscribed agents whenever a prompt's served version changes.
+doc_type: concept
 ---
 
-# Live updates (pub/sub)
+**Live updates** are notifications that Priompt pushes to subscribed agents whenever the served version of a prompt changes. They let an agent pick up a fixed prompt within moments instead of at its next restart, and decide from the attached verdict whether to reload on its own.
 
-The server embeds a **NATS** broker in-process, so it's still a single binary. `PublishPrompt` stores the new version *and* pushes a notification to every subscriber:
+## Broker and subjects
+
+The server runs an embedded **NATS** broker, an open-source message broker, inside the same process, so Priompt stays a single binary. It listens on `127.0.0.1:4222` by default. `-nats-addr ""` turns live updates off.
+
+Each prompt address maps to a NATS **subject**, the channel a subscriber listens on. The server replaces the scheme with `priompt.` and each `/` with `.`:
+
+```text
+priompt://acme/support/agent  →  priompt.acme.support.agent
+```
+
+The diagram shows what happens when an author publishes a new version to `main`:
 
 ```mermaid
 sequenceDiagram
@@ -12,64 +25,64 @@ sequenceDiagram
     participant S as Priompt server
     participant N as Embedded NATS
     participant A as Subscribed agent
-
-    W->>S: publish new version
-    S->>S: validate + commit + run semantic diff
-    S->>S: invalidate cache
-    S->>N: notify subject priompt.acme.support.agent
-    N-->>A: "changed! version 1e8284…, verdict: localized tweak"
-    alt verdict is within the agent's policy
-        A->>A: re-fetch and hot-reload
-    else verdict is structural, or absent
-        A->>A: keep the old version, alert a human
-    end
+    W->>S: PublishPrompt
+    S->>S: validate, commit, classify the change
+    S->>S: clear the cache entry
+    S->>N: event on priompt.acme.support.agent
+    N-->>A: version + verdict
+    A->>S: GetPrompt (if its policy allows)
 ```
 
-## Notifications carry the verdict
+## Events
 
-Each event includes the [semantic diff](./semantic-diff.md) classification: `structural`, `localized tweak`, `minor edit`, or `new`. The server already computed it on publish, so an agent can decide what to do without a second round trip:
+An event is a small JSON object:
 
-```python
-client = PromptClient(host="…:8443", cache_ttl=30, nats_url="nats://<nats-token>@…:4222")
+- **`version`**: the full version hash of the new served content.
+- **`classification`**: the [semantic diff](./semantic-diff.md) verdict for the change from the old served version: `structural`, `localized tweak`, `minor edit`, or `new` for a prompt's first version. The field is left out when there's no verdict.
 
-# Which verdicts this agent acts on by itself. Everything else waits for a human,
-# including an EMPTY verdict: the server couldn't classify the change (a
-# misconfigured embedding endpoint, say) and published anyway.
-# "" doesn't mean "safe". It means nobody checked.
-AUTO_RELOAD = {"minor edit", "localized tweak", "new"}
+These are real events from two publishes, as received on the broker:
 
-def on_change(version, classification):
-    if classification in AUTO_RELOAD:
-        reload(version)
-    else:
-        alert_a_human(version)
-
-client.subscribe("priompt://acme/support/agent", on_change)
+```text
+priompt.acme.support.agent {"version":"e84e381192a146bc1f90062cb34b4fb363d82a8f213f916d6642a331d04061f3","classification":"new"}
+priompt.acme.support.agent {"version":"d047afb8b8d1d9a75446c61e6f0ba34628d832cc8e5408a99f9e0d5f8cdb5cf8"}
 ```
 
-Where you draw that line is your policy. The verdict doesn't decide it for you: a `localized tweak` can still be a policy reversal. For an agent whose prompt governs refunds or safety rules, it's reasonable to hold *everything* and let the verdict decide only how loudly to page someone.
+The second event has no verdict because the server couldn't reach its embedding endpoint. The server still publishes the change, and its log explains the gap with a line that starts `classify: semantic verdict unavailable, notifying without one:` followed by the endpoint's error.
 
-Build these two habits in, whatever policy you choose:
+Only changes to the served HEAD send events:
 
-- **Re-fetch rather than trusting the payload.** Treat the event as "something changed" and read the new version over the authenticated gRPC channel.
-- **Fail closed on an empty verdict.** It looks like a quiet stream of harmless edits while the safety check simply isn't running.
+| Write | Event |
+| --- | --- |
+| Publish new content to `main` | Yes, with the verdict, or `new` for a first version. |
+| Publish the content `main` already serves | No. |
+| Publish to another branch | No. |
+| Roll back with `SetBranch` on `main` | Yes, with the verdict of the change from the old served version. |
+| Merge into `main` | No, in v0.7.2. |
+| `priompt put` or `priompt import` | No. |
 
-From a shell, `priompt watch` prints the verdict. Its `-exec` hook receives `PRIOMPT_VERSION` and `PRIOMPT_CLASS`:
+## Verdict policy
 
-```sh
-priompt watch -uri priompt://acme/support/agent -exec './reload.sh'
-```
+The verdict lets each agent choose a **reload policy**: which verdicts it reloads on its own, and which it holds for a person to review. The policy belongs to the agent, not the server. Two rules apply whatever you choose:
+
+- **Treat a missing verdict as unchecked, not safe.** An empty verdict means the server couldn't classify the change, for example because its embedding endpoint is down. Hold it like a `structural` change.
+- **Re-fetch instead of trusting the event.** Treat the event as "something changed" and read the new version over the authenticated gRPC channel.
+
+A verdict measures how far a change spreads, not how risky it is. Changing "offer a refund when reasonable" to "never offer a refund" is a `localized tweak`. For prompts that govern refunds or safety rules, hold every change and use the verdict only to decide how urgently to ask for review. [Hot-reload prompts safely](/guides/hot-reload) has the policy code for each SDK.
 
 ## Consistency model
 
-Push is best-effort, so a network blip can drop an event. The **client cache TTL is the convergence guarantee**. The new version is stored durably either way, and subscribers converge on their next fetch.
+Push is best effort. The broker doesn't store events, so an agent that's disconnected when a change lands never receives that event. The client cache TTL is the convergence guarantee instead: every agent sees the new version on its first read after its cached copy expires.
 
-## Securing the broker
+Each server node embeds its own broker. With more than one node, cluster the brokers, or agents connected to one node miss changes published on another. See [Scale to multiple nodes](/operations/scaling).
 
-Change events name the prompt (and therefore the org), carry the version hash, and carry the verdict that agents gate auto-reload on. An open broker would disclose every tenant's namespace and let anyone forge an event that agents act on.
+:::warning Events are a security boundary
+Events name every prompt that changes and carry the verdict agents act on. An open broker discloses every org's prompt names and lets anyone forge an event. The server refuses to bind NATS to a non-loopback address without `-nats-token`. In v0.7.2 that token is shared by all subscribers, so any subscriber can watch every org. Addresses that differ only in `/` versus `.` also share a subject: `priompt://acme/corp/x` and `priompt://acme.corp/x` both publish on `priompt.acme.corp.x`. See [Security](/operations/security).
+:::
 
-- Set `-nats-token` (or `PRIOMPT_NATS_TOKEN`) whenever NATS is reachable off-loopback. The server **refuses** to bind a non-loopback address without one.
-- Clients pass it in the URL: `nats://<token>@host:4222`.
-- `-nats-addr ""` disables pub/sub entirely.
+## Related
 
-Running more than one node? Each node embeds its own broker, so you need to cluster them. See [Scaling](../operations/scaling.md#nats-across-nodes).
+- [Hot-reload prompts safely](/guides/hot-reload): subscribe and apply a reload policy from Python or Node.
+- [Semantic diff](./semantic-diff.md): how the verdict is computed.
+- [Security](/operations/security): protect the broker with a token.
+- [Scale to multiple nodes](/operations/scaling): cluster the brokers.
+- [priompt CLI](/reference/cli): `priompt watch` prints each event from a shell.

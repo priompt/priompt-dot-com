@@ -1,38 +1,49 @@
 ---
-title: Installation
+title: Install Priompt
+sidebar_label: Install
+description: Choose how to install the Priompt server, what else to install, and which ports it uses.
+doc_type: overview
 ---
 
-# Installation
+Use Docker unless you need a native service; then follow the guide for your OS. Priompt is one static Go binary, with SQLite built in, so there's no runtime or database to install first.
 
-Priompt is one static Go binary: no runtime, no CGO, and no database to install (SQLite is built in). There are two ways to get it:
+## Choose a method
 
-| Method | Good for | Status |
+| Method | Use it for | Guide |
 | --- | --- | --- |
-| [Docker](./docker.mdx) | The fastest start on any OS, and containerized production | Published as <Var name="dockerImage" /> (amd64 + arm64). `docker compose up --build` builds from source. |
-| [From source](./from-source.md) | Every OS, today | Works now. Needs Go 1.25+ and git. |
-| Prebuilt binaries | Downloading a single file | Not published yet |
+| Docker | The fastest start on any OS, and container platforms. The image <Var name="dockerImage" /> is published for amd64 and arm64. | [Install with Docker](./docker.mdx) |
+| Linux service | A systemd service under its own user. | [Install on Linux](./linux.mdx) |
+| macOS service | A launchd agent that starts at login. | [Install on macOS](./macos.mdx) |
+| Windows service | A Windows service managed by NSSM. | [Install on Windows](./windows.mdx) |
+| From source | `go install` on any OS, or a build from a clone. | [Build from source](./from-source.md) |
 
-Then follow the guide for your OS to run it as a proper background service:
+The Linux, macOS, and Windows guides build the binary with `go install`.
 
-- [Linux](./linux.mdx): systemd unit, dedicated user, firewall
-- [macOS](./macos.mdx): launchd agent, Apple Silicon and Intel
-- [Windows](./windows.mdx): PowerShell setup, running as a Windows service
+:::info No prebuilt binaries yet
+Priompt doesn't publish downloadable binaries yet. Use Docker or `go install`. See [Status and roadmap](../roadmap.md).
+:::
 
-## What gets installed where
+## What else to install
 
-| Piece | Required? | Install |
+You only need the server. Install the rest when you need it:
+
+| Piece | Install it when | How |
 | --- | --- | --- |
-| `priompt` server | **yes** | this section |
-| Python SDK | if your agents are Python | `pip install` <Var name="pypiName" /> |
-| JS SDK | if your agents are Node | `npm i` <Var name="npmName" /> |
-| `promptctl` | if authors keep prompts in git | [build from source](./from-source.md#promptctl-and-priompt-auth) |
-| `priompt-auth` | if you need SSO or service accounts | [build from source](./from-source.md#promptctl-and-priompt-auth) |
+| Python SDK | Your agents are written in Python. | `pip install` <Var name="pypiName" /> |
+| Node SDK | Your agents run on Node. | `npm install` <Var name="npmName" /> |
+| `promptctl` | Authors keep prompts as files in git. | [Build from source](./from-source.md) |
+| `priompt-auth` | You need SSO or service accounts. | [Build from source](./from-source.md) |
 
 ## Ports
 
-| Port | What | Expose? |
+| Port | Used by | Expose it |
 | --- | --- | --- |
-| `8443` | gRPC API (what clients talk to) | Yes, to your agents |
-| `4222` | Embedded NATS (change notifications) | Only with `-nats-token` set. The server refuses a non-loopback bind without one. |
-| `2112` | Prometheus `/metrics` | Keep internal |
-| `8444` | `priompt-auth` (if used) | To clients that fetch tokens |
+| `8443` | gRPC API, which clients call. | To your agents. Add TLS first, see [Secure a server](/operations/security). |
+| `4222` | Embedded NATS, which carries change events. | Only with `-nats-token` set. The server refuses a non-loopback NATS address without one. See [Secure a server](/operations/security). |
+| `2112` | Prometheus `/metrics`. | Keep it internal. See [Monitoring](/operations/monitoring). |
+| `8444` | `priompt-auth`, if you run it. | To clients that fetch tokens. See [SSO and service accounts](/guides/sso). |
+
+## Next steps
+
+- [Quickstart](../quickstart.mdx): try Priompt locally before you install it as a service.
+- [Production checklist](/operations/production-checklist): set what a server needs before it takes real traffic.

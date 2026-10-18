@@ -1,0 +1,155 @@
+---
+title: Use the gRPC API from any language
+sidebar_label: Other languages
+description: Call a Priompt server from Go, Java, or any language with gRPC tooling, and subscribe to change events with a NATS client.
+doc_type: how-to
+---
+
+This guide connects an app written in any language to a Priompt server through its gRPC API. The API is one service, `priompt.v1.PromptService`, defined in a single file, `prompt.proto`. It covers every operation, including history, branches, merges, and rollback, which the Python and Node SDKs don't all wrap.
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+- **A running server**: see the [Quickstart](../quickstart.mdx). The examples use `localhost:8443` without authentication.
+- **The contract**: clone the proto repository, which holds `proto/priompt/v1/prompt.proto`:
+
+  <Cmd lang="sh">{`git clone {{githubOrg}}/proto`}</Cmd>
+
+- **[grpcurl](https://github.com/fullstorydev/grpcurl)**: to try calls from a shell.
+- **[buf](https://buf.build/docs/installation)**: to generate a client. Not needed for Go.
+
+## Call the API with grpcurl
+
+The server doesn't enable gRPC reflection, so pass the `.proto` file to grpcurl.
+
+To fetch a prompt, run from the directory that holds the `proto` clone:
+
+```sh
+grpcurl -plaintext -H "authorization: Bearer <token>" \
+  -import-path proto/proto -proto priompt/v1/prompt.proto \
+  -d '{"uri":"priompt://acme/onboarding/welcome"}' \
+  localhost:8443 priompt.v1.PromptService/GetPrompt
+```
+
+```text title="Output"
+{
+  "uri": "priompt://acme/onboarding/welcome",
+  "template": "Hi {name}, welcome to {org}!",
+  "slots": [
+    "name",
+    "org"
+  ],
+  "versionHash": "e345dcf74d01b792c098e087311615829e1529363097a89eba31d522d0fcdbea"
+}
+```
+
+Replace `<token>` with a token the server accepts, or drop the `-H` line for a server without authentication. grpcurl prints field names in camel case, such as `versionHash`. Generated code uses each language's own convention.
+
+## Generate a client
+
+To generate a client with buf:
+
+1. Next to the `proto` clone, create a `buf.gen.yaml` that names your language's plugins. This one generates Go:
+
+   ```yaml title="buf.gen.yaml"
+   version: v2
+   inputs:
+     - directory: proto/proto
+   plugins:
+     - remote: buf.build/protocolbuffers/go
+       out: gen
+       opt: paths=source_relative
+     - remote: buf.build/grpc/go
+       out: gen
+       opt: paths=source_relative
+   ```
+
+   For another language, swap in its plugins from the [Buf Schema Registry](https://buf.build/plugins), for example `buf.build/grpc/java` or `buf.build/grpc/csharp`. Remote plugins run on Buf's servers, so you don't install `protoc` or any plugin locally.
+
+2. Generate the code:
+
+   ```sh
+   buf generate
+   find gen -type f
+   ```
+
+   ```text title="Output"
+   gen/priompt/v1/prompt.pb.go
+   gen/priompt/v1/prompt_grpc.pb.go
+   ```
+
+### Use the published Go stubs
+
+Go apps can skip generation. The proto module publishes its generated stubs:
+
+```sh
+go get github.com/priompt/proto@v0.7.0
+```
+
+```go title="main.go"
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	priomptv1 "github.com/priompt/proto/gen/priompt/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
+)
+
+func main() {
+	conn, err := grpc.NewClient("localhost:8443", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+	client := priomptv1.NewPromptServiceClient(conn)
+
+	ctx := metadata.AppendToOutgoingContext(context.Background(), "authorization", "Bearer <token>")
+	p, err := client.GetPrompt(ctx, &priomptv1.GetPromptRequest{Uri: "priompt://acme/onboarding/welcome"})
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(p.GetTemplate(), p.GetVersionHash()[:12])
+}
+```
+
+```text title="Output"
+Hi {name}, welcome to {org}! e345dcf74d01
+```
+
+## Follow the connection rules
+
+Every client, generated or not, talks to the server the same way:
+
+- **Address**: `host:8443`. The connection is plaintext unless the server runs with `-tls-cert` and `-tls-key`. A server with `-client-ca` also requires a client certificate signed by that CA.
+- **Authentication**: send the metadata header `authorization: Bearer <token>` on every call. A server without tokens ignores it.
+- **Pinning**: set `ref` on `GetPromptRequest` to a branch name or a full 64-character commit hash. The response then carries `commit_hash`.
+- **Errors**: failures use standard gRPC status codes. A missing prompt returns `NotFound` with the message `prompt "<uri>" not found`. See [Errors](../reference/errors.md).
+
+The [gRPC API reference](../reference/grpc-api.md) documents every RPC and message.
+
+## Subscribe without an SDK
+
+The server publishes a change event on its NATS broker each time the served version of a prompt changes. To receive events from any language, connect a NATS client to `nats://127.0.0.1:4222`, or `nats://<nats-token>@host:4222` when the broker requires a token. Then subscribe to the prompt's subject.
+
+The subject is the address with `priompt://` replaced by `priompt.` and each `/` replaced by `.`. For example, `priompt://acme/support/agent` publishes on `priompt.acme.support.agent`, and `priompt.acme.>` matches every prompt in the `acme` org.
+
+The message body is JSON:
+
+```json
+{"version":"bd45a4721079b550b784f3fe346b34a86d640ebd6e9b0248ea5b957aea345274","classification":"minor edit"}
+```
+
+`version` is the new version hash, and `classification` is the semantic verdict. The server omits `classification` when it couldn't classify the change. Treat an event as a signal to fetch the prompt again over gRPC. To decide which verdicts your app reloads on its own, see [Hot-reload prompts safely](../guides/hot-reload.mdx).
+
+## Next steps
+
+- [gRPC API](../reference/grpc-api.md): every RPC, message, and field.
+- [Branch, pin, and roll back a prompt](../guides/branch-pin-rollback.mdx): the versioning RPCs as a workflow.
+- [Secure a server](../operations/security.md): tokens, TLS, and the broker token.
+- [Client SDKs](./index.mdx): compare what the Python and Node SDKs wrap.

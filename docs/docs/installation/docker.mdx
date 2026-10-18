@@ -1,119 +1,181 @@
 ---
-title: Docker
+title: Install with Docker
+sidebar_label: Docker
+description: Run the Priompt server from its published container image, with a token and a persistent volume.
+doc_type: how-to
 ---
 
-# Docker
+This guide runs the Priompt server from its published container image, with an admin token and a volume that keeps your prompts across restarts. The same steps work on Linux, on macOS with Docker Desktop or OrbStack, and on Windows with Docker Desktop.
 
-The image is a static Go binary on `alpine:3.20`. It exposes `8443` (gRPC), `2112` (metrics), and `4222` (NATS), and keeps its SQLite database in `/data`. The same steps work on Linux, macOS (Docker Desktop or OrbStack), and Windows (Docker Desktop with WSL 2).
+The image <Var name="dockerImage" /> is published for `linux/amd64` and `linux/arm64`, tagged per release (such as `:v0.7.2`) and `:latest`. It exposes `8443` (gRPC), `2112` (metrics), and `4222` (NATS).
 
-## Run the published image
+## Prerequisites
 
-Images are published to GHCR for `linux/amd64` and `linux/arm64`, tagged per release (`:v0.7.0`) and `:latest`. Pin a version tag in production. `docker run --rm <image> version` prints the build, and `/metrics` exposes it as `priompt_build_info`.
+Before you begin, make sure you have:
 
-<Cmd lang="sh">{`
-docker run -d --name priompt \\
-  -p 8443:8443 \\
-  -v priompt-data:/data \\
-  -e PRIOMPT_SEED=false \\
-  {{dockerImage}}
-`}</Cmd>
+- **Docker Engine or Docker Desktop**: see [Get Docker](https://docs.docker.com/get-started/get-docker/).
+- **A POSIX shell**: the commands use `\` line continuations. On Windows, use Git Bash or WSL.
 
-The default command is `serve`, and any arguments you add replace it:
+## 1. Create an admin token
 
-<Cmd lang="sh">{`
-docker run -d --name priompt -p 8443:8443 -v priompt-data:/data \\
-  -e PRIOMPT_TOKEN=change-me \\
-  {{dockerImage}} serve -addr=:8443 -db=/data/priompt.db -cache-ttl=30s
-`}</Cmd>
+To create a token that clients send to the server:
 
-Run the ops commands inside the same container:
+1. Generate a random token with the image itself:
 
-```sh
-docker exec -it priompt priompt list -addr localhost:8443
-docker exec -it priompt priompt backup -db /data/priompt.db -out /data/snapshot.jsonl
-```
+   <Cmd lang="sh">{`docker run --rm {{dockerImage}}:v{{version}} gen-token`}</Cmd>
 
-## Build from source with Compose
+   ```text title="Output"
+   e65647c3fac5363603d4bc5b302bef10523dd67425efcb10a1fcc433c71b3a14
+   ```
 
-To run unreleased changes, build the image from a clone of the server repo. It needs nothing else checked out: the other Go modules come from the module proxy.
+2. Keep the token somewhere safe. The next step calls it `<token>`.
 
-```sh
-cd priompt
-docker compose up --build -d
-```
+## 2. Start the server
 
-`docker-compose.yml` is the whole configuration in one file:
+To start the server in the background:
 
-```yaml
-services:
-  priompt:
-    build: .
-    ports:
-      - "8443:8443"               # gRPC
-      - "127.0.0.1:2112:2112"     # Prometheus /metrics: keep off the public interface
-      - "127.0.0.1:4222:4222"     # NATS pub/sub: set PRIOMPT_NATS_TOKEN before widening
-    volumes:
-      - priompt-data:/data        # SQLite db persists here
-      # - ./tls:/tls:ro           # uncomment to mount TLS material
-    environment:
-      PRIOMPT_TOKEN: "${PRIOMPT_TOKEN:-}"            # admin bearer token (blank = auth off)
-      PRIOMPT_JWKS_URL: "${PRIOMPT_JWKS_URL:-}"      # priompt-auth /jwks; blank = no JWT auth
-      PRIOMPT_EMBED_URL: "${PRIOMPT_EMBED_URL:-}"    # blank = offline lexical embedder
-      PRIOMPT_EMBED_MODEL: "${PRIOMPT_EMBED_MODEL:-}"
-      PRIOMPT_EMBED_KEY: "${PRIOMPT_EMBED_KEY:-}"
-      PRIOMPT_REDIS_URL: "${PRIOMPT_REDIS_URL:-}"    # blank = in-process cache
-      PRIOMPT_NATS_TOKEN: "${PRIOMPT_NATS_TOKEN:-}"  # required once NATS is published off-loopback
-      PRIOMPT_ENCRYPTION_KEY: "${PRIOMPT_ENCRYPTION_KEY:-}" # base64 of 32 bytes
-    command:
-      - serve
-      - -addr=:8443
-      - -db=/data/priompt.db
-      - -nats-addr=0.0.0.0:4222
-      - -metrics-addr=:2112
-      - -cache-ttl=30s
-      - -rate-limit=0
-      # - -tls-cert=/tls/server.crt
-      # - -tls-key=/tls/server.key
-      # - -client-ca=/tls/ca.crt        # enables mTLS
-      # - -tokens-file=/tls/tokens.txt
-    restart: unless-stopped
+1. Run the image with the token and a named volume:
 
-volumes:
-  priompt-data:
-```
+   <Cmd lang="sh">{[
+     'docker run -d --name priompt --restart unless-stopped \\',
+     '  -p 8443:8443 \\',
+     '  -v priompt-data:/data \\',
+     '  -e PRIOMPT_TOKEN=<token> \\',
+     '  -e PRIOMPT_SEED=false \\',
+     '  {{dockerImage}}:v{{version}} serve -db /data/priompt.db',
+   ].join("\n")}</Cmd>
 
-Put secrets in a `.env` file next to it, and keep that file out of git:
+   Replace `<token>` with the token from step 1.
 
-```ini
-PRIOMPT_TOKEN=replace-with-output-of-priompt-gen-token
-PRIOMPT_NATS_TOKEN=another-random-token
-PRIOMPT_ENCRYPTION_KEY=base64-of-32-random-bytes
-```
+The flags work as follows:
 
-:::warning NATS inside a container
-Inside the container NATS listens on `0.0.0.0:4222`, which is not loopback, so the server **will not start without `PRIOMPT_NATS_TOKEN`**. That's deliberate. Change events name every prompt and carry the verdict agents act on, so an open broker leaks tenant names and lets anyone forge events. Subscribers then connect with `nats://<token>@host:4222`.
+- **`-e PRIOMPT_TOKEN`**: Every request must carry this token. The server treats it as an admin token with write access.
+- **`-e PRIOMPT_SEED=false`**: Skips the demo prompt the server otherwise stores on first start.
+- **`serve -db /data/priompt.db`**: Puts the database on the `priompt-data` volume. Arguments after the image name replace the default command, `serve`, so any server flag goes here.
+
+:::warning Always pass -db on the volume
+In v0.7.2, the image's default command doesn't write to `/data`. A server started without `-db /data/priompt.db` loses its prompts when you remove the container. See the [Production checklist](/operations/production-checklist).
 :::
 
-## Add a real embedding model
+Pin a version tag as shown. Use `:latest` only to try things out.
 
-The semantic diff falls back to an offline lexical embedder. The TEI overlay adds a local HuggingFace model so the diff scores *meaning*:
+## 3. Check the server
 
-```sh
-docker compose -f docker-compose.yml -f docker-compose.tei.yml up --build
-# choose another model:
-EMBED_MODEL=intfloat/e5-large-v2 docker compose -f docker-compose.yml -f docker-compose.tei.yml up
-```
+To check that the server is running:
 
-The first start downloads the model, so allow about a minute. Any OpenAI-compatible `/v1/embeddings` endpoint works instead, such as Ollama, llama.cpp, or OpenAI; see [Semantic diff](../concepts/semantic-diff.md#use-a-real-embedding-model).
+1. Read the log:
 
-## Postgres and Redis
+   ```sh
+   docker logs priompt
+   ```
 
-For more than one node, point the container at shared services:
+   ```text title="Output"
+   2026/10/18 04:43:30 priompt v0.7.2 (a6f64e4fcb66a75ed1fd1826c662ce61e4c9981c) serving on :8443 (tls=false mtls=false auth=1-token cache=mem embed=lexical(offline) nats=127.0.0.1:4222 metrics=:2112 ratelimit=0/s)
+   2026/10/18 04:43:30 metrics on :2112/metrics
+   ```
 
-```sh
-docker run -d -p 8443:8443 \
-  -e PRIOMPT_REDIS_URL=redis://redis:6379/0 \
-  … serve -db postgres://priompt:pw@postgres:5432/prompts
-```
+   `auth=1-token` means the server requires your token.
 
-See [Scaling](../operations/scaling.md) for the full multi-node setup, including NATS clustering.
+2. List the prompts with the CLI inside the container:
+
+   ```sh
+   docker exec priompt priompt list
+   ```
+
+   A new server has no prompts, so the command prints nothing and exits with status `0`. The CLI inside the container reads `PRIOMPT_TOKEN` from the container's environment, so it's authorized.
+
+## Run ops commands
+
+The image includes the whole `priompt` CLI. Run any command with `docker exec`, and pass paths under `/data` so they land on the volume.
+
+To back up the store and copy the backup to the host:
+
+1. Write the backup inside the container:
+
+   ```sh
+   docker exec priompt priompt backup -db /data/priompt.db -out /data/snapshot.jsonl
+   ```
+
+   ```text title="Output"
+   backed up 1 prompts, 1 commits, 1 branch pointers
+   ```
+
+2. Copy it out:
+
+   ```sh
+   docker cp priompt:/data/snapshot.jsonl .
+   ```
+
+See [Storage and backups](/operations/storage) for restore, and the [`priompt` CLI reference](/reference/cli) for every command.
+
+## Build the image with Compose
+
+To run unreleased changes, build the image from a clone of the server repo with Docker Compose. The repo's `docker-compose.yml` holds the whole configuration, and the other Go modules come from the module proxy.
+
+The Compose file publishes NATS on `0.0.0.0:4222` inside the container. The server refuses to bind NATS off loopback without a NATS token, so the token is required.
+
+To build and start the server with Compose:
+
+1. Clone the server repo:
+
+   <Cmd lang="sh">{`git clone {{githubOrg}}/priompt.git
+   cd priompt`}</Cmd>
+
+2. Create a `.env` file next to `docker-compose.yml`, and keep it out of git:
+
+   ```ini title=".env"
+   PRIOMPT_TOKEN=<token>
+   PRIOMPT_NATS_TOKEN=<nats-token>
+   ```
+
+   Replace `<token>` with an admin token and `<nats-token>` with a second token, both from `gen-token`.
+
+3. Build and start the server:
+
+   ```sh
+   docker compose up --build -d
+   ```
+
+4. Check the log:
+
+   ```sh
+   docker compose logs priompt
+   ```
+
+   ```text title="Output"
+   priompt-1  | 2026/10/18 04:44:58 seeded demo prompt priompt://acme/onboarding/welcome
+   priompt-1  | 2026/10/18 04:44:58 priompt dev (unknown) serving on :8443 (tls=false mtls=false auth=1-token cache=mem embed=lexical(offline) nats=0.0.0.0:4222 metrics=:2112 ratelimit=0/s)
+   priompt-1  | 2026/10/18 04:44:58 metrics on :2112/metrics
+   ```
+
+   A local build reports its version as `dev`. Without `PRIOMPT_NATS_TOKEN`, the log shows `-nats-addr 0.0.0.0:4222 is not loopback` instead, and the container restarts.
+
+<details>
+<summary>What <code>docker-compose.yml</code> configures</summary>
+
+The Compose file binds gRPC on all interfaces and keeps metrics and NATS on the host's loopback. Every setting is an environment variable that you can set in `.env`:
+
+| Name | Description |
+| --- | --- |
+| `PRIOMPT_TOKEN` | Admin bearer token. Blank turns authentication off. |
+| `PRIOMPT_NATS_TOKEN` | Token NATS subscribers must present. Required by this file. |
+| `PRIOMPT_JWKS_URL` | The `priompt-auth` `/jwks` URL. Blank turns JWT authentication off. |
+| `PRIOMPT_EMBED_URL`, `PRIOMPT_EMBED_MODEL`, `PRIOMPT_EMBED_KEY` | Embedding endpoint for the semantic diff. Blank uses the offline lexical embedder. |
+| `PRIOMPT_REDIS_URL` | Shared cache. Blank uses an in-process cache. |
+| `PRIOMPT_ENCRYPTION_KEY` | Base64 of 32 random bytes. Encrypts prompts at rest. |
+
+The `command` list passes `-db=/data/priompt.db`, `-cache-ttl=30s`, and commented-out TLS and tokens-file flags. See [Server configuration](/reference/configuration) for every flag.
+
+</details>
+
+## Other setups
+
+- **Real embedding model**: the repo's `docker-compose.tei.yml` overlay adds a local model. See [Use a real embedding model](/guides/embedding-model).
+- **PostgreSQL, Redis, and more than one node**: see [Scale to multiple nodes](/operations/scaling).
+- **TLS and tokens files**: see [Secure a server](/operations/security).
+
+## Next steps
+
+- [Production checklist](/operations/production-checklist): set what a server needs before it takes real traffic.
+- [Client SDKs](/sdks): connect an agent with `PRIOMPT_URL=priompt://<token>@<your-host>:8443`.
+- [Quickstart](../quickstart.mdx): fetch a prompt and watch a change arrive.

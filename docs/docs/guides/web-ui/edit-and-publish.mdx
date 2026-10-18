@@ -5,6 +5,83 @@ description: "Change a prompt, check the impact, and publish it from the browser
 doc_type: ui-guide
 ---
 
-:::info Draft
-This page is being written.
+This guide changes a prompt's template in the web UI and publishes it as a new commit. A commit on `main` reaches agents right away, and the server records a semantic verdict for it. To publish from the command line instead, see [`priompt` CLI](../../reference/cli.md).
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+- **The web UI running and connected to a server**: see [Run the web UI](./run.md).
+- **An `rw` token** for the prompt's org in the UI's configuration, if the server has authentication on.
+
+## 1. Open the editor
+
+To open a prompt for editing:
+
+1. Open the namespace, for example **acme**.
+2. Go to the prompt, for example **onboarding** > **welcome.prompt**.
+3. Select **Edit**.
+
+   The template opens in the editor, with its slots listed on the right.
+
+## 2. Change the template
+
+1. Edit the text. Slots are placeholders such as `{name}`. **Detected slots** updates as you type.
+
+   ![Editor for onboarding/welcome.prompt with line 3 changed to add "or import a project", the Detected slots panel, and the Check impact button highlighted.](/img/ui/04-editor.png)
+
+   *Line 3 now offers a third first step. The slots stay the same.*
+
+Priompt derives a prompt's slots from its template, so a new `{placeholder}` adds a slot and a removed one drops it. The UI rejects an empty template, a doubled `{{name}}`, and an unclosed or malformed placeholder before it sends anything.
+
+## 3. Check the impact
+
+**Check impact** asks the server for the **semantic verdict** of your unsaved edit: `minor edit`, `localized tweak`, or `structural`. The [semantic diff](../../concepts/semantic-diff.md) page explains how the server decides.
+
+1. Select **Check impact**.
+
+   The **Semantic propagation diff** panel opens under the editor with the verdict for each changed region.
+
+:::info Known issue
+In the current UI release, **Check impact** rates every edit `structural`, because the UI drops the draft from its request to the server. The verdict on the commit page after you save is correct. See [Review a commit and its verdict](./review-commit.mdx).
 :::
+
+## 4. Commit the change
+
+To publish the edit:
+
+1. Select **Save**.
+2. In **Commit changes**, enter a commit message of up to 72 characters.
+3. Check **Commit to:**. It shows the branch you opened the editor on, usually **main**.
+4. Select **Commit changes**.
+
+   ![Commit changes dialog with the message "Offer project import as a first step", an empty description, and Commit to set to main.](/img/ui/06-commit-dialog.png)
+
+   *The commit message is required. It appears in the prompt's history.*
+
+The prompt view opens on the new version. A commit on `main` is served to agents at once, and subscribed agents get a notification with the verdict. To stage a change on `dev` first, see [Branch, promote, and roll back in the UI](./branches.mdx).
+
+If the server rejects the commit, the editor shows the error and keeps your text. When the error says to retry, for example because someone published in the meantime, select **Save** again.
+
+## Create a prompt
+
+To add a new prompt to a namespace:
+
+1. On the namespace's **Prompts** tab, select **New prompt**.
+2. In **File name**, enter a name, for example `refund-reply.prompt`. The `.prompt` extension is added if you leave it out.
+3. In **Folder**, enter the folder, for example `support`. **Address** shows the prompt's full address.
+4. Enter the template in **Content**. **Detected slots** lists its slots.
+5. Enter a **Commit message**.
+6. Select **Create prompt**.
+
+   ![Create new prompt form for refund-reply.prompt in support, address priompt://acme/support/refund-reply, three detected slots, and the Create prompt button.](/img/ui/16-new-prompt.png)
+
+   *The form shows the address and slots the new prompt will get.*
+
+The new prompt opens on `main` with one commit.
+
+## Next steps
+
+- [Review a commit and its verdict](./review-commit.mdx): read the diff and verdict of the commit you made.
+- [Branch, promote, and roll back in the UI](./branches.mdx): stage edits on `dev` before they reach agents.
+- [Live updates](../../concepts/live-updates.md): how agents learn about a new version.

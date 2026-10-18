@@ -5,6 +5,110 @@ description: "Create a branch, compare it, promote it, and roll back from the br
 doc_type: ui-guide
 ---
 
-:::info Draft
-This page is being written.
+This guide stages a change to one prompt on a `dev` branch, compares it with `main`, promotes it, merges it, and rolls `main` back. In Priompt, branches belong to a single prompt, and `main` is the branch served to agents. To do the same from code or the CLI, see [Branch, pin, and roll back a prompt](../branch-pin-rollback.mdx).
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+- **The web UI running and connected to a server**: see [Run the web UI](./run.md).
+- **An `rw` token** for the prompt's org in the UI's configuration, if the server has authentication on.
+- **A prompt with a few commits**, for example `priompt://acme/onboarding/welcome`.
+
+## 1. Pick the prompt
+
+To open a prompt's branches:
+
+1. Open the namespace, for example **acme**.
+2. Select the **Branches** tab.
+3. Under **Prompt**, select the prompt, for example `onboarding/welcome.prompt`.
+
+   The page lists the prompt's branches, with **Promote** and **Rollback** sections below them.
+
+## 2. Create a branch
+
+1. Select **New branch**.
+2. In **Branch name**, enter `dev`.
+3. In **Source branch**, keep **main**.
+4. Select **Create branch**.
+
+   ![Create new branch dialog with Branch name dev and Source branch main.](/img/ui/09-new-branch.png)
+
+   *The new branch starts at the source branch's latest commit.*
+
+   A banner confirms **Created dev from main.** The **Prompt** list resets, so select the prompt again to see `dev` in the branch list.
+
+:::note
+The branch list shows only `main`, `dev`, `staging`, and `prod`. The server accepts other names, but the UI doesn't list them yet, so use these four.
 :::
+
+## 3. Commit a change to dev
+
+Edits on `dev` don't change what agents get from `main`. The editor has no branch switch yet, so open it on `dev` by URL.
+
+To commit to `dev`:
+
+1. Go to `/<org>/edit/dev/<prompt path>`, for example `/acme/edit/dev/onboarding/welcome.prompt`.
+2. Change the template and select **Save**.
+3. Enter a commit message. **Commit to:** shows **dev**.
+4. Select **Commit changes**.
+
+   The **Branches** tab now shows your message as the latest commit on `dev`.
+
+   ![Branches view for onboarding/welcome.prompt with main (default, serving) and the new dev branch highlighted, with its Merge into main button.](/img/ui/10-branches.png)
+
+   *Each branch shows its latest commit message and author.*
+
+## 4. Compare dev with main
+
+Compare has no menu entry yet, so open it by URL.
+
+1. Go to `/<org>/compare/main...dev?path=<prompt path>`, for example `/acme/compare/main...dev?path=onboarding/welcome.prompt`.
+
+   ![Compare changes for main and dev: 1 commit ahead, an inserted line 4, and the semantic propagation diff verdict localized tweak.](/img/ui/11-compare.png)
+
+   *`dev` is one commit ahead of `main` and adds line 4, a `localized tweak`.*
+
+Use **base** and **compare** to pick other branches. The verdict reads the same way as on a commit. See [Review a commit and its verdict](./review-commit.mdx).
+
+## 5. Promote dev to staging
+
+Promoting moves a prompt from one environment branch to the next, for example `dev` to `staging` to `prod`. Priompt records each promotion as a commit.
+
+1. Under **Promote**, set **From** to **dev** and **To** to **staging**.
+2. Select **Promote**.
+
+   ![Branches view after promoting: a green banner "Promoted dev to staging", the new staging branch highlighted, and the Promote form set to dev and staging.](/img/ui/12-promote.png)
+
+   *`staging` now holds the change from `dev`.*
+
+If the target branch doesn't exist yet, the UI creates it from the source branch first.
+
+## 6. Merge dev into main
+
+1. In the branch list, select **Merge into main** on the `dev` row.
+
+   ![Branches view after merging: a green banner "Merged dev into main", and main highlighted with the latest commit "merge dev into main".](/img/ui/13-merge.png)
+
+   *`main` has a new commit, and agents are now served the change.*
+
+## 7. Roll back main
+
+Rolling back points `main` at an earlier commit. Nothing is deleted, and agents get the earlier version at once.
+
+1. Under **Rollback**, find the commit you want `main` to serve.
+2. Select **Roll back to here** on that row.
+
+   ![Rollback list for main after a rollback: commit 861d338 marked current, with Roll back to here buttons on the three older commits.](/img/ui/14-rollback.png)
+
+   *`main` points at `861d338` again, the commit before the merge.*
+
+   A banner confirms that `main` now points at the commit.
+
+After a rollback, the list starts at the commit `main` now points at. The later commits still exist, but the list doesn't show them.
+
+## Next steps
+
+- [Branch, pin, and roll back a prompt](../branch-pin-rollback.mdx): pin an agent to a branch or commit from code.
+- [Versioning](../../concepts/versioning.md): how commits, branches, and the served `main` relate.
+- [Review a commit and its verdict](./review-commit.mdx): check each change before you merge it.

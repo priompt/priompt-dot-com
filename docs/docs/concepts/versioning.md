@@ -1,73 +1,93 @@
 ---
 title: Versioning
+sidebar_label: Versioning
+description: How Priompt records every prompt change as a commit, which version agents are served, and what each write guarantees.
+doc_type: concept
 ---
 
-# Versioning: commits, branches, rollback
+Every prompt in Priompt has its own commit history, like a file in Git. Knowing how commits, branches, and the served HEAD relate tells you exactly which version an agent receives and how to change it safely.
 
-Every prompt has its own history, just like a file in Git:
+## Commits
 
-- Each published change is a **commit**, with an author, a message, and a timestamp.
-- A **branch** is a named line of work.
-- **`main` is what agents are served**: the "served HEAD".
+A **commit** is one recorded version of one prompt: its content, its parent commit, an author, an optional message, and a timestamp. Every publish and every merge adds a commit. Creating a branch or moving one doesn't.
+
+The **commit hash** is a SHA-256 over the prompt's address, its version hash, its parents, the author, and the message. Two consequences follow:
+
+- Restoring old content creates a new commit. Publishing the first version's text again gives a new commit hash with the original [version hash](./prompts.md#version-hash).
+- Identical content in two prompts still gives two different commits, because the address is part of the hash.
+
+The **author** is the caller's identity: the subject of a `priompt-auth` JWT, or else the token's org, or else `anonymous`. See [Orgs, tokens, and access](./access-control.md).
+
+## Branches and the served HEAD
+
+A **branch** is a named pointer to a commit of one prompt. Every prompt starts with `main`. The **served HEAD** is the commit that `main` points at: the version that `GetPrompt` returns without a ref, that the server caches, and that subscribers hear about.
+
+The diagram shows a candidate developed on a branch, then merged into `main`, which changes what agents receive:
 
 ```mermaid
 gitGraph
-    commit id: "A: first version"
+    commit id: "v1"
+    commit id: "v2 (served)"
     branch feature
-    commit id: "B: experiment"
-    commit id: "C: refined"
+    commit id: "v3 candidate"
     checkout main
-    merge feature id: "M: merged - now served"
+    merge feature id: "merge (now served)"
 ```
 
-Work published to a `feature` branch is recorded but **invisible to agents** until it's merged into `main`. A commit's identity covers both its content and its lineage, so reverting to old content creates a new commit rather than colliding with the original.
+- **Publishing** without a branch writes to `main`. Publishing to another branch records a commit there and leaves the served HEAD alone.
+- **CreateBranch** points a new branch at another branch's tip, `main` by default. Publishing to a branch name that doesn't exist yet starts a new history with no parent instead.
+- **MergeBranch** records a commit with two parents on the target branch, `main` by default. The merged content is the source branch's tip, taken as is. Priompt doesn't do a three-way content merge.
+- **History** lists a branch's first-parent chain, newest first, like `git log --first-parent`.
 
-## A typical flow
+Branches belong to one prompt. Each RPC takes a single `uri`, and there's no call that lists a prompt's branches.
 
-```sh
-# publish onto main (the default): moves the served HEAD and notifies subscribers
-priompt publish -uri priompt://acme/support/agent -file v1.txt -slot name
-```
+## Pinning and refs
 
-Branch, merge, history, and rollback are gRPC calls. Use the SDKs, generated stubs, or any gRPC client:
+A **ref** names a version to read: a branch name, or a full 64-character commit hash. `GetPrompt` with a ref returns that version and its `commit_hash`, so an agent can **pin** to it and upgrade when you decide. Short hashes aren't accepted, and a commit that belongs to another prompt isn't found:
 
 ```text
-CreateBranch  uri, name="feature", from="main"
-PublishPrompt uri, template=…, branch="feature"   # served HEAD unchanged
-MergeBranch   uri, into="main", from="feature"    # served HEAD now = feature content
-History       uri, branch="main"                  # the commit log, newest first
-DiffCommits   uri, from_hash, to_hash             # semantic diff of any two commits
+ERROR:
+  Code: NotFound
+  Message: ref "2c5aa5eb7609" not found for "priompt://acme/support/agent"
 ```
 
-## Pinning
-
-Agents don't have to follow the latest version. `GetPrompt(uri, ref)` fetches a specific branch tip or commit, so an agent can **pin** a version and upgrade deliberately. The response carries the `commit_hash` to pin to.
-
-```python
-client.get("priompt://acme/support/agent", ref="1e8284f35650")
-```
+Pinned reads skip the server cache and are validated like any other read.
 
 ## Rollback
 
-`SetBranch(uri, "main", <old-commit>)` points `main` at an earlier commit, which is an instant, atomic **rollback**. Every reader of HEAD gets the old version immediately: the cache is invalidated and subscribers are notified. Nothing is deleted, because a rollback only moves a pointer.
+`SetBranch` moves a branch pointer to an existing commit of the same prompt. On `main`, that's a **rollback**: the served HEAD changes at once, the cache entry is cleared, and subscribers get a notification. Nothing is deleted. The commits you rolled past leave `main`'s history, but you can still read them by commit hash.
 
-## Behavior you can rely on
+## Guarantees
 
-- **Concurrent publishes to one prompt are safe.** Advancing a branch is a compare-and-swap against the commit the writer read. If the branch moved underneath a writer, that writer gets `ABORTED` and should re-read and retry. A publish is never reported as successful and then silently dropped.
-- **A publish that can't clear the cache fails.** The change is already durable, but the RPC returns `UNAVAILABLE` and takes effect on retry. The alternative would be every node serving the old version while the caller believes the change is live. Rollback behaves the same way.
-- **Publishing to a non-`main` branch** records a commit, but doesn't change the served HEAD, invalidate the cache, or notify subscribers.
-- **Merging** records a two-parent merge commit. Merge content is taken from the source branch ("take theirs"). Three-way content auto-merge isn't implemented yet.
-- **History** walks the first-parent chain (the mainline), newest first.
+- **Concurrent writes don't get lost**: advancing a branch is a compare-and-swap against the tip the writer read. If another write moved the branch first, the loser gets `ABORTED` and should re-read and retry.
+- **Republishing the served content is a no-op**: publishing the content `main` already serves records no commit and sends no notification.
+- **A write that can't clear the cache fails**: publish, merge into `main`, and rollback return `UNAVAILABLE` if the cache can't be cleared. The change is already stored. Retry it so every node serves the new version.
+- **Branch work stays invisible**: a publish to another branch doesn't change the served HEAD, clear the cache, or notify anyone.
+- **Only gRPC writes create commits**: `priompt put` and `priompt import` write the served content directly, with no commit and no history. Use `priompt publish` or an SDK for changes you want versioned.
 
-## Example: A/B test a prompt
+:::note
+In v0.7.2, merging into `main` changes the served HEAD but doesn't notify subscribers. Agents pick up the merged version on their next read after their cache expires. Also, republishing identical content to a branch other than `main` records a new commit each time.
+:::
 
-```mermaid
-gitGraph
-    commit id: "v1 - cohort A reads main"
-    branch feat
-    commit id: "candidate - cohort B pins ref=feat"
-    checkout main
-    merge feat id: "experiment won"
-```
+## Worked example
 
-Publish the candidate to branch `feat` and point cohort B at `get(uri, ref="feat")` while cohort A stays on `main`. `MergeBranch` ships the winner, and `SetBranch` reverts it.
+This sequence ran against one prompt, `priompt://acme/support/agent`. The table shows the first 12 characters of the version hash that each branch points at after each step.
+
+| Step | Action | `main` serves | `feature` |
+| --- | --- | --- | --- |
+| 1 | Publish v1 | `e84e381192a1` | none |
+| 2 | Publish v2, a reworded greeting | `d047afb8b8d1` | none |
+| 3 | Create branch `feature` from `main` | `d047afb8b8d1` | `d047afb8b8d1` |
+| 4 | Publish v3 to `feature`, a refund rule change | `d047afb8b8d1` | `91b8599e74bd` |
+| 5 | Merge `feature` into `main` | `91b8599e74bd` | `91b8599e74bd` |
+| 6 | Set `main` back to the step 2 commit | `d047afb8b8d1` | `91b8599e74bd` |
+
+Agents reading the served HEAD got v3 only between steps 5 and 6. An agent pinned to `ref="feature"` got v3 from step 4 on.
+
+## Related
+
+- [Branch, pin, and roll back a prompt](/guides/branch-pin-rollback): run these steps yourself.
+- [A/B test a prompt](/guides/ab-test): serve a branch to part of your traffic.
+- [Live updates](./live-updates.md): which writes notify subscribers.
+- [gRPC API](/reference/grpc-api): every versioning RPC and its fields.
+- [Glossary](/reference/glossary)

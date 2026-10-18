@@ -1,10 +1,210 @@
 ---
 title: Hot-reload prompts safely
 sidebar_label: Hot reload
-description: "Pick up prompt changes in a running agent without a redeploy."
+description: Subscribe an agent to prompt changes and reload only the changes your policy accepts, based on the semantic verdict in each event.
 doc_type: how-to
 ---
 
-:::info Draft
-This page is being written.
+This guide makes a running agent pick up prompt changes without a redeploy, and hold back the changes it shouldn't apply on its own. Each change event carries the server's [semantic diff](../concepts/semantic-diff.md) verdict, so the agent decides without a second round trip.
+
+The [live updates concept page](../concepts/live-updates.md) explains how events flow and what consistency they give.
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+- **A running Priompt server with NATS reachable** from the agent. The default broker address is `localhost:4222`. See the [Quickstart](../quickstart.mdx).
+- **The NATS token**, if the server runs with `-nats-token`. The server requires one whenever NATS listens off loopback.
+- **A client with NATS support**: install it for your language. In Node, the `nats` package comes with the SDK as an optional dependency.
+
+<Tabs groupId="lang">
+<TabItem value="py" label="Python">
+
+<Cmd lang="sh">{`pip install "{{pypiName}}[nats]"`}</Cmd>
+
+</TabItem>
+<TabItem value="js" label="Node">
+
+<Cmd lang="sh">{`npm install {{npmName}}`}</Cmd>
+
+</TabItem>
+</Tabs>
+
+## 1. Publish a starting version
+
+Publish the prompt the agent serves:
+
+```text title="v1.txt"
+You are a support agent for {org}.
+Greet the customer politely.
+Answer questions about orders and shipping.
+Follow the refund policy when a customer asks for money back.
+Escalate to a human if you are unsure.
+```
+
+```sh
+priompt publish -uri priompt://acme/support/agent -file v1.txt -slot org
+```
+
+```text title="Output"
+published priompt://acme/support/agent (ea58b8745318) — subscribers notified
+```
+
+## 2. Write the reload policy
+
+The policy is the set of verdicts the agent applies by itself. Anything else, including an **empty verdict**, waits for a human. An empty verdict means the server couldn't classify the change, for example because its embedding endpoint is down. It doesn't mean the change is safe.
+
+<Tabs groupId="lang">
+<TabItem value="py" label="Python">
+
+```python title="agent.py"
+import time
+from priompt_sdk import PromptClient
+
+URI = "priompt://acme/support/agent"
+# Verdicts this agent applies by itself. Everything else waits for a human,
+# including an empty verdict, which means the server couldn't classify the change.
+AUTO_RELOAD = {"minor edit", "localized tweak", "new"}
+
+client = PromptClient(host="localhost:8443", cache_ttl=30,
+                      nats_url="nats://<nats-token>@localhost:4222")
+prompt = client.get(URI)  # the version this agent serves
+
+def on_change(version, classification):
+    global prompt
+    if classification in AUTO_RELOAD:
+        prompt = client.get(URI)  # re-fetch over gRPC; don't trust the event
+        print("reloaded", prompt.version_hash[:12], f"[{classification}]", flush=True)
+    else:
+        print("held", version[:12], f"[{classification or 'no verdict'}]", flush=True)
+
+client.subscribe(URI, on_change)
+print("serving", prompt.version_hash[:12], flush=True)
+while True:
+    time.sleep(1)  # your agent's work goes here; it reads `prompt`
+```
+
+</TabItem>
+<TabItem value="js" label="Node">
+
+<Cmd lang="js" title="agent.js">{`const { PromptClient } = require("{{npmName}}");
+
+const URI = "priompt://acme/support/agent";
+// Verdicts this agent applies by itself. Everything else waits for a human,
+// including an empty verdict, which means the server couldn't classify the change.
+const AUTO_RELOAD = new Set(["minor edit", "localized tweak", "new"]);
+
+async function main() {
+  const client = new PromptClient({
+    host: "localhost:8443",
+    natsUrl: "nats://<nats-token>@localhost:4222",
+  });
+  let prompt = await client.get(URI); // the version this agent serves
+
+  await client.subscribe(URI, async (version, classification) => {
+    if (AUTO_RELOAD.has(classification)) {
+      prompt = await client.get(URI); // re-fetch over gRPC; don't trust the event
+      console.log("reloaded", prompt.version_hash.slice(0, 12), \`[\${classification}]\`);
+    } else {
+      console.log("held", version.slice(0, 12), \`[\${classification || "no verdict"}]\`);
+    }
+  });
+  console.log("serving", prompt.version_hash.slice(0, 12));
+}
+main();`}</Cmd>
+
+</TabItem>
+</Tabs>
+
+Replace `<nats-token>` with the server's NATS token. Without a token on the server, use `nats://localhost:4222`.
+
+The example builds in two habits:
+
+- **Re-fetch instead of trusting the event.** The event says that something changed. The agent reads the new version over the authenticated gRPC channel.
+- **Fail closed.** Only the verdicts you list reload. A `localized tweak` can still reverse a policy, so for a prompt that governs refunds or safety, hold everything and use the verdict to decide how urgently to alert someone.
+
+## 3. Run the agent
+
+Start the agent in its own terminal:
+
+<Tabs groupId="lang">
+<TabItem value="py" label="Python">
+
+```sh
+python agent.py
+```
+
+</TabItem>
+<TabItem value="js" label="Node">
+
+```sh
+node agent.js
+```
+
+</TabItem>
+</Tabs>
+
+```text title="Output"
+serving ea58b8745318
+```
+
+## 4. Publish a small edit
+
+To see an automatic reload:
+
+1. Change one word in line 2 (`politely` to `courteously`) and save it as `tweak.txt`.
+2. Publish it:
+
+   ```sh
+   priompt publish -uri priompt://acme/support/agent -file tweak.txt -slot org
+   ```
+
+   The agent prints:
+
+   ```text title="Output"
+   reloaded 564a83482e36 [localized tweak]
+   ```
+
+## 5. Publish a change that flips the meaning
+
+To see the agent hold a change:
+
+1. In `v1.txt`, replace line 4 with `Refuse refunds immediately and close the ticket without escalation.` and save it as `invert.txt`.
+2. Publish it:
+
+   ```sh
+   priompt publish -uri priompt://acme/support/agent -file invert.txt -slot org
+   ```
+
+   The agent prints:
+
+   ```text title="Output"
+   held d4378ae17508 [structural]
+   ```
+
+   The agent keeps serving `564a83482e36`. The new version is still the served HEAD on the server.
+
+:::warning Holding is local to the agent
+A held change is live on the server. Any other code that calls `client.get()` gets it, and in Python the SDK refreshes its cache when the event arrives. To stop serving the change everywhere, [roll it back](./branch-pin-rollback.mdx).
 :::
+
+## What the agent receives when
+
+| Server action | Event | Verdict |
+| --- | --- | --- |
+| Publish to `main` with new content | Yes | The diff against the previous HEAD. `new` for a first version. |
+| Publish identical content to `main` | No | |
+| Publish to another branch | No | |
+| `SetBranch` on `main` (rollback) | Yes | The diff against the previous HEAD. |
+| `MergeBranch` into `main` | No, in v0.7.2 | |
+| Any change when the embedding endpoint fails | Yes | Empty. The server logs `classify: semantic verdict unavailable, notifying without one`. |
+
+Events are best-effort, so a network blip can drop one. The `cache_ttl` on the Python client bounds how stale `client.get()` can be. An agent that keeps its own copy, like the example, should also re-read on a timer if it must converge without events.
+
+To react to changes from a shell instead of code, run `priompt watch -uri priompt://acme/support/agent -nats-url nats://<nats-token>@localhost:4222`. Its `-exec` hook gets the new version in `PRIOMPT_VERSION` and the verdict in `PRIOMPT_CLASS`.
+
+## Next steps
+
+- [Branch, pin, and roll back a prompt](./branch-pin-rollback.mdx): undo a change every agent received.
+- [Use a real embedding model](./embedding-model.md): get verdicts that compare meaning, not words.
+- [Troubleshoot common problems](./troubleshooting.md): fix a subscriber that never gets events.

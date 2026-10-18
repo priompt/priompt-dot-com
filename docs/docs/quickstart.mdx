@@ -1,109 +1,388 @@
 ---
-title: Quick start
+title: Quickstart
+sidebar_label: Quickstart
+description: Run a Priompt server, fetch a prompt from Python or Node, and watch a published change arrive with its semantic verdict.
+doc_type: quickstart
 ---
 
-# Quick start
+At the end of this quickstart, you have a local Priompt server and you've seen how an agent fetches a prompt and hears about changes. In this quickstart, you start the server, fetch a demo prompt from Python or Node, and publish two changes while a subscriber watches. It takes about ten minutes.
 
-This page takes you from nothing to an agent fetching a prompt in about five minutes. Choose Docker if you want no toolchain, or build from source if you already have Go.
+The video shows a similar tour of the `priompt` CLI in a terminal.
 
-<Tabs groupId="quickstart">
+<video controls muted playsInline preload="none" poster="/video/priompt-cli.png" src="/video/priompt-cli.mp4" style={{width: "100%", borderRadius: 8}} />
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+- **Docker**, or **Go 1.25 or later**: to run the server. Get them from [Docker](https://docs.docker.com/get-started/get-docker/) or [go.dev/dl](https://go.dev/dl/).
+- **Python 3.9 or later**, or **Node 20 or later**: to run the client.
+- **bash or zsh**: the shell commands use it. On Windows, use Git Bash or WSL.
+
+## 1. Start the server
+
+On its first start, the server stores a demo prompt at the address `priompt://acme/onboarding/welcome`, so there's something to fetch right away.
+
+<Tabs groupId="install">
 <TabItem value="docker" label="Docker" default>
 
-On first start the server seeds a demo prompt, so you can fetch something right away.
+To start the server in Docker:
 
-<Cmd lang="sh">{`
-# 1. run the server
-docker run -d --name priompt -p 8443:8443 -v priompt-data:/data {{dockerImage}}
+1. Run the published image:
 
-# 2. install the Python client (it imports as \`priompt_sdk\`)
-pip install {{pypiName}}
-`}</Cmd>
+   <Cmd lang="sh">{`docker run -d --name priompt -p 8443:8443 -v priompt-data:/data {{dockerImage}} serve -db /data/priompt.db`}</Cmd>
+
+   The server listens on port `8443`. `-db /data/priompt.db` keeps its database in the `priompt-data` volume. Without it, the v0.7.2 image writes the database outside the volume, and removing the container loses your prompts. The [Production checklist](/operations/production-checklist) covers this for real servers.
+
+2. Check the log:
+
+   ```sh
+   docker logs priompt
+   ```
+
+   ```text title="Output"
+   2026/10/18 00:42:08 seeded demo prompt priompt://acme/onboarding/welcome
+   2026/10/18 00:42:08 priompt v0.7.2 (a6f64e4fcb66a75ed1fd1826c662ce61e4c9981c) serving on :8443 (tls=false mtls=false auth=0-token cache=mem embed=lexical(offline) nats=127.0.0.1:4222 metrics=:2112 ratelimit=0/s)
+   2026/10/18 00:42:08 metrics on :2112/metrics
+   ```
 
 </TabItem>
 <TabItem value="source" label="From source">
 
-You need Go 1.25+ and a clone of the `priompt` repo (see [From source](./installation/from-source.md)).
+To build and start the server:
 
-```sh
-cd priompt
-go build -o priompt ./cmd/priompt          # priompt.exe on Windows
+1. Build the `priompt` binary:
 
-# store a prompt; validation runs here, no server needed yet
-echo "Hi {name}, welcome to {org}!" > welcome.txt
-./priompt put -uri priompt://acme/onboarding/welcome -file welcome.txt -slot name -slot org
-# stored priompt://acme/onboarding/welcome (22e5cc10ac0f)
+   ```sh
+   go install github.com/priompt/priompt/cmd/priompt@latest
+   ```
 
-# serve it
-./priompt serve -addr :8443
-```
+   Go puts the binary in `$(go env GOPATH)/bin`. If your shell can't find `priompt` in the next step, add that directory to your `PATH`.
 
-In a second terminal, install the Python client:
+2. Check the version:
 
-<Cmd lang="sh">{`pip install {{pypiName}}`}</Cmd>
+   ```sh
+   priompt version
+   ```
+
+   ```text title="Output"
+   priompt v0.7.2 (commit unknown, go1.26.4)
+   ```
+
+3. Create a working directory and start the server in it:
+
+   ```sh
+   mkdir priompt-quickstart && cd priompt-quickstart
+   priompt serve
+   ```
+
+   ```text title="Output"
+   2026/10/18 06:13:54 seeded demo prompt priompt://acme/onboarding/welcome
+   2026/10/18 06:13:54 metrics on :2112/metrics
+   2026/10/18 06:13:54 priompt v0.7.2 (unknown) serving on :8443 (tls=false mtls=false auth=0-token cache=mem embed=lexical(offline) nats=127.0.0.1:4222 metrics=:2112 ratelimit=0/s)
+   ```
+
+   The server keeps its database in `priompt.db` and runs in this terminal until you press Ctrl+C. Open a new terminal for the next steps.
 
 </TabItem>
 </Tabs>
 
-## Fetch the prompt from your code
+## 2. Fetch a prompt
+
+An agent fetches a prompt by its address and fills in its **slots**, the named placeholders such as `{name}` that your app supplies. See [Prompts and addresses](/concepts/prompts) for the address format.
 
 <Tabs groupId="lang">
 <TabItem value="py" label="Python" default>
 
-```python
-from priompt_sdk import PromptClient
+To fetch the demo prompt from Python:
 
-client = PromptClient(host="localhost:8443")
-prompt = client.get("priompt://acme/onboarding/welcome")
-print(prompt.template.format(name="Sujal", org="Acme"))
-# Hi Sujal, welcome to Acme!
-```
+1. Install the SDK:
+
+   <Cmd lang="sh">{`pip install {{pypiName}}`}</Cmd>
+
+2. Save this script as `quickstart.py`:
+
+   ```python title="quickstart.py"
+   from priompt_sdk import PromptClient
+
+   client = PromptClient(host="localhost:8443")
+   prompt = client.get("priompt://acme/onboarding/welcome")
+   print(prompt.template.format(name="Ada", org="Acme"))
+   print(prompt.version_hash[:12])
+   ```
+
+3. Run it:
+
+   ```sh
+   python quickstart.py
+   ```
+
+   ```text title="Output"
+   Hi Ada, welcome to Acme!
+   e345dcf74d01
+   ```
 
 </TabItem>
 <TabItem value="js" label="Node">
 
-<Cmd lang="sh">{`npm i {{npmName}}`}</Cmd>
+To fetch the demo prompt from Node:
 
-<Cmd lang="js">{`
-const { PromptClient } = require("{{npmName}}");
+1. Install the SDK:
 
-const client = new PromptClient({ host: "localhost:8443" });
-const prompt = await client.get("priompt://acme/onboarding/welcome");
-console.log(prompt.template, prompt.version_hash);
-`}</Cmd>
+   <Cmd lang="sh">{`npm install {{npmName}}`}</Cmd>
+
+2. Save this script as `quickstart.js`. The SDK is a CommonJS package, so the `await` goes inside an `async` function:
+
+   <Cmd lang="js" title="quickstart.js">{[
+     'const { PromptClient } = require("{{npmName}}");',
+     '',
+     'async function main() {',
+     '  const client = new PromptClient({ host: "localhost:8443" });',
+     '  const prompt = await client.get("priompt://acme/onboarding/welcome");',
+     '  console.log(prompt.template.replace("{name}", "Ada").replace("{org}", "Acme"));',
+     '  console.log(prompt.version_hash.slice(0, 12));',
+     '  client.close();',
+     '}',
+     '',
+     'main();',
+   ].join("\n")}</Cmd>
+
+3. Run it:
+
+   ```sh
+   node quickstart.js
+   ```
+
+   ```text title="Output"
+   Hi Ada, welcome to Acme!
+   e345dcf74d01
+   ```
 
 </TabItem>
 </Tabs>
 
-## Try the safety net
+The version hash identifies this exact content. It changes with every publish.
 
-These steps use the `priompt` binary from the source build. With Docker, run the same commands inside the container, for example `docker exec -it priompt priompt …`.
+## 3. Publish a change and watch it arrive
 
-If a template and its declared slots disagree, the prompt is rejected and nothing is written:
+Agents learn about a change by subscribing to the prompt. Each change event carries the new version hash and a **semantic verdict**, a label for how far the edit changes the prompt's meaning. See [Semantic diff](/concepts/semantic-diff) for how Priompt computes it. In this step, `priompt watch` plays the subscribing agent.
 
-```sh
-./priompt put -uri priompt://acme/bad/x -file welcome.txt -slot name
-# validation failed: template uses undeclared slots: org   (exit 1)
-```
+<Tabs groupId="install">
+<TabItem value="docker" label="Docker" default>
 
-Publish a second version and watch a subscriber receive the change with its semantic verdict:
+To publish two changes and watch them arrive:
 
-```sh
-# terminal A
-./priompt watch -uri priompt://acme/onboarding/welcome
+1. In a new terminal, subscribe to the prompt:
 
-# terminal B
-echo "Hi {name}, welcome back to {org}!" > v2.txt
-./priompt publish -uri priompt://acme/onboarding/welcome -file v2.txt -slot name -slot org
+   ```sh
+   docker exec priompt priompt watch -uri priompt://acme/onboarding/welcome
+   ```
 
-# terminal A prints:
-# priompt://acme/onboarding/welcome updated -> 4146f71b692c… [localized tweak]
-```
+   ```text title="Output"
+   2026/10/18 00:42:22 watching priompt://acme/onboarding/welcome on nats://127.0.0.1:4222
+   ```
 
-:::tip Production
-The server runs **open** when no tokens are configured. That's fine on your laptop and nowhere else. Run `priompt init` before exposing it (see [Security](./operations/security.md)), and turn off the demo prompt with `PRIOMPT_SEED=false`.
+   Leave it running.
+
+2. In another terminal, publish a rewrite of the prompt:
+
+   ```sh
+   echo 'You are the onboarding guide for {org}. Greet {name}, then list three first steps.' |
+     docker exec -i priompt priompt publish -uri priompt://acme/onboarding/welcome -file - -slot name -slot org
+   ```
+
+   ```text title="Output"
+   published priompt://acme/onboarding/welcome (ff8d89cbc0e6) — subscribers notified
+   ```
+
+   `-file -` reads the template from standard input, and each `-slot` declares a slot the template uses. The watch terminal prints the change with the verdict `structural`:
+
+   ```text title="Output"
+   2026/10/18 00:42:41 priompt://acme/onboarding/welcome updated -> ff8d89cbc0e627cc748eb9b901a2852585cabbca87d29922bf178911a7e58b6f [structural]
+   ```
+
+3. Publish a one-word tweak of the new text:
+
+   ```sh
+   echo 'You are the onboarding guide for {org}. Greet {name} warmly, then list three first steps.' |
+     docker exec -i priompt priompt publish -uri priompt://acme/onboarding/welcome -file - -slot name -slot org
+   ```
+
+   ```text title="Output"
+   published priompt://acme/onboarding/welcome (9025ffc1be53) — subscribers notified
+   ```
+
+   The watch terminal prints the verdict `minor edit`:
+
+   ```text title="Output"
+   2026/10/18 00:42:42 priompt://acme/onboarding/welcome updated -> 9025ffc1be53511a820a65ef3aaef9d3c6970444787353febfdab05d183a5d4b [minor edit]
+   ```
+
+</TabItem>
+<TabItem value="source" label="From source">
+
+To publish two changes and watch them arrive:
+
+1. In a new terminal, subscribe to the prompt:
+
+   ```sh
+   priompt watch -uri priompt://acme/onboarding/welcome
+   ```
+
+   ```text title="Output"
+   2026/10/18 06:14:14 watching priompt://acme/onboarding/welcome on nats://127.0.0.1:4222
+   ```
+
+   Leave it running.
+
+2. In another terminal, publish a rewrite of the prompt:
+
+   ```sh
+   echo 'You are the onboarding guide for {org}. Greet {name}, then list three first steps.' |
+     priompt publish -uri priompt://acme/onboarding/welcome -file - -slot name -slot org
+   ```
+
+   ```text title="Output"
+   published priompt://acme/onboarding/welcome (ff8d89cbc0e6) — subscribers notified
+   ```
+
+   `-file -` reads the template from standard input, and each `-slot` declares a slot the template uses. The watch terminal prints the change with the verdict `structural`:
+
+   ```text title="Output"
+   2026/10/18 06:14:17 priompt://acme/onboarding/welcome updated -> ff8d89cbc0e627cc748eb9b901a2852585cabbca87d29922bf178911a7e58b6f [structural]
+   ```
+
+3. Publish a one-word tweak of the new text:
+
+   ```sh
+   echo 'You are the onboarding guide for {org}. Greet {name} warmly, then list three first steps.' |
+     priompt publish -uri priompt://acme/onboarding/welcome -file - -slot name -slot org
+   ```
+
+   ```text title="Output"
+   published priompt://acme/onboarding/welcome (9025ffc1be53) — subscribers notified
+   ```
+
+   The watch terminal prints the verdict `minor edit`:
+
+   ```text title="Output"
+   2026/10/18 06:14:18 priompt://acme/onboarding/welcome updated -> 9025ffc1be53511a820a65ef3aaef9d3c6970444787353febfdab05d183a5d4b [minor edit]
+   ```
+
+</TabItem>
+</Tabs>
+
+An agent can reload a `minor edit` on its own and hold a `structural` change for a person to review.
+
+## 4. Try to publish a broken prompt
+
+Priompt validates every prompt before it stores it. A template may use only the slots it declares, and every declared slot must appear in the template.
+
+<Tabs groupId="install">
+<TabItem value="docker" label="Docker" default>
+
+To see validation reject a prompt:
+
+1. Publish a template that uses `{org}` without declaring it:
+
+   ```sh
+   echo 'Hi {name}, welcome to {org}!' |
+     docker exec -i priompt priompt publish -uri priompt://acme/onboarding/welcome -file - -slot name
+   ```
+
+   ```text title="Output"
+   2026/10/18 00:42:44 rpc error: code = InvalidArgument desc = invalid prompt: template uses undeclared slots: org
+   ```
+
+   The command exits with status `1`, and the server stores nothing.
+
+2. List the served prompts:
+
+   ```sh
+   docker exec priompt priompt list
+   ```
+
+   ```text title="Output"
+   priompt://acme/onboarding/welcome	9025ffc1be53
+   ```
+
+   The served version is still the one from your last successful publish.
+
+</TabItem>
+<TabItem value="source" label="From source">
+
+To see validation reject a prompt:
+
+1. Publish a template that uses `{org}` without declaring it:
+
+   ```sh
+   echo 'Hi {name}, welcome to {org}!' |
+     priompt publish -uri priompt://acme/onboarding/welcome -file - -slot name
+   ```
+
+   ```text title="Output"
+   2026/10/18 06:14:19 rpc error: code = InvalidArgument desc = invalid prompt: template uses undeclared slots: org
+   ```
+
+   The command exits with status `1`, and the server stores nothing.
+
+2. List the served prompts:
+
+   ```sh
+   priompt list
+   ```
+
+   ```text title="Output"
+   priompt://acme/onboarding/welcome	9025ffc1be53
+   ```
+
+   The served version is still the one from your last successful publish.
+
+</TabItem>
+</Tabs>
+
+:::warning
+This server accepts requests from anyone who can reach it, because no tokens are configured. Keep it on your own machine. Before you expose a server, follow the [Production checklist](/operations/production-checklist).
 :::
 
-## Next
+## Clean up
 
-- Install it as a service on [Linux](./installation/linux.mdx), [macOS](./installation/macos.mdx), or [Windows](./installation/windows.mdx)
-- Learn how [versioning](./concepts/versioning.md) and [live updates](./concepts/live-updates.md) work
+<Tabs groupId="install">
+<TabItem value="docker" label="Docker" default>
+
+To remove the server and its data:
+
+1. Stop the watch with Ctrl+C.
+2. Delete the container and its volume:
+
+   ```sh
+   docker rm -f priompt
+   docker volume rm priompt-data
+   ```
+
+   ```text title="Output"
+   priompt
+   priompt-data
+   ```
+
+</TabItem>
+<TabItem value="source" label="From source">
+
+To remove the server and its data:
+
+1. Stop the watch and the server with Ctrl+C.
+2. Delete the working directory, which holds the database:
+
+   ```sh
+   cd .. && rm -r priompt-quickstart
+   ```
+
+</TabItem>
+</Tabs>
+
+## Next steps
+
+- [Install Priompt](./installation/index.mdx): run the server as a service on Linux, macOS, or Windows.
+- [Hot-reload prompts safely](/guides/hot-reload): act on change events and their verdicts in your agent.
+- [Versioning](/concepts/versioning): how commits, branches, and rollback work.
+- [Author prompts in git](/guides/promptctl): keep prompts as files in a repo and publish them from there.

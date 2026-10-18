@@ -5,6 +5,71 @@ description: "A tour of the web UI: browse, edit, review, and ship prompts in th
 doc_type: ui-guide
 ---
 
-:::info Draft
-This page is being written.
+The Priompt web UI lets you browse, edit, and publish prompts in a browser instead of with the CLI. You can read every version of a prompt, see the semantic verdict the server gave each change, and branch, promote, merge, and roll back.
+
+The UI is a SvelteKit app. Its server side calls Priompt over gRPC, so your token stays on that server and never reaches the browser.
+
+<video controls muted playsInline preload="none" poster="/video/ui-walkthrough.png" src="/video/ui-walkthrough.mp4" style={{width: "100%", borderRadius: 8}} />
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+- **The web UI running and connected to a server**: see [Run the web UI](./run.md).
+- **Some prompts with history**: run `seed-dev.sh` as described in [Run the web UI](./run.md), or publish a few prompts yourself.
+
+## Tour
+
+The screenshots below follow one prompt, `priompt://acme/onboarding/welcome`, from the home page to a commit and its verdict.
+
+1. The home page lists every namespace on the server. A **namespace** is an org, the first part of a prompt's address. Select one to open it.
+
+   ![Dashboard showing the Namespaces list with acme (7 prompts), demo (1 prompt), and globex (3 prompts).](/img/ui/01-dashboard.png)
+
+   *The dashboard lists every namespace on the server with its prompt count.*
+
+2. A namespace lists its folders and prompts on `main`, the branch Priompt serves to agents.
+
+   ![The acme namespace on branch main, marked Serving, with folders agents, content, onboarding, and support, and the file system-prompt.prompt.](/img/ui/02-namespace.png)
+
+   *Folders and prompts in the acme namespace. Each `.prompt` file is one prompt.*
+
+3. A prompt shows its template with each **slot**, a named blank like `{name}` that your app fills in, highlighted.
+
+   ![Prompt view of onboarding/welcome.prompt on main: four template lines with the org and name slots highlighted, file info, the Detected slots panel, and the Live badge.](/img/ui/03-prompt-viewer.png)
+
+   *The prompt view, with its slots, the commit it was read from, and the **Edit**, **History**, and **Copy** actions.*
+
+4. **History** lists every commit of the prompt, newest first.
+
+   ![Commits view for /onboarding/welcome.prompt listing four commits, newest "Offer project import as a first step" (861d338), oldest "seed: demo prompt".](/img/ui/07-history.png)
+
+   *Each commit shows its message, author, and short hash.*
+
+5. A commit shows the line diff and the server's semantic verdict for each change.
+
+   ![Commit view for "Offer project import as a first step": a one-line diff on line 3 and a semantic propagation diff with the verdict minor edit.](/img/ui/08-commit-diff.png)
+
+   *This edit rates `minor edit`, the smallest of the three verdicts.*
+
+## What you can do
+
+| Task | Where | Guide |
+| --- | --- | --- |
+| Browse namespaces, folders, and prompts | Home page, then a namespace | [Browse prompts and history](./browse.mdx) |
+| Read a prompt's history | **History** on a prompt | [Browse prompts and history](./browse.mdx) |
+| Search a namespace | `/<org>/search?q=<text>` | [Browse prompts and history](./browse.mdx) |
+| Edit a prompt and publish it | **Edit** on a prompt, then **Save** | [Edit and publish a prompt](./edit-and-publish.mdx) |
+| Create a prompt | **New prompt** in a namespace | [Edit and publish a prompt](./edit-and-publish.mdx) |
+| Read a commit's diff and verdict | A commit in **History** | [Review a commit and its verdict](./review-commit.mdx) |
+| Branch, compare, promote, merge, and roll back | **Branches** tab | [Branch, promote, and roll back in the UI](./branches.mdx) |
+
+:::info Placeholder controls
+Some controls don't do anything yet: the navbar search box (it opens a Ctrl+K dialog with sample data), the **+**, pull request, inbox, and account buttons, **Upload**, **Raw**, the `/init` and `/settings` pages, and everything below **Connection** on a namespace's **Settings** tab.
 :::
+
+## Next steps
+
+- [Run the web UI](./run.md): install the UI and point it at your server.
+- [Edit and publish a prompt](./edit-and-publish.mdx): change a template and ship it as a commit.
+- [Branch, promote, and roll back in the UI](./branches.mdx): stage a change on `dev` before it reaches agents.

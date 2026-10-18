@@ -1,0 +1,256 @@
+---
+title: Author prompts in git with promptctl
+sidebar_label: promptctl
+description: Keep prompts as files in a git repo, validate and diff every change with promptctl, and publish them to a Priompt server.
+doc_type: how-to
+---
+
+This guide sets up a git repo of prompt files and walks one prompt from first commit to a live server. You get the same habits developers have with code: every commit is validated, every edit gets a semantic verdict before it ships, and environments are git branches.
+
+The video shows the whole flow in a terminal.
+
+<video controls muted playsInline preload="none" poster="/video/promptctl.png" src="/video/promptctl.mp4" style={{width: "100%", borderRadius: 8}} />
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+- **`promptctl`**: run `go install github.com/priompt/cli/cmd/promptctl@latest` (Go 1.25 or later). Git is embedded, so `promptctl` doesn't need a `git` binary. You still need `git` for `git init` and `git branch` below.
+- **A running Priompt server**: see the [Quickstart](../quickstart.mdx). This guide uses `localhost:8443`.
+- **An `rw` token**, if the server has authentication on. See [Secure a server](../operations/security.md).
+
+## How files map to prompts
+
+`promptctl` reads every `*.prompt` file under the repo root:
+
+- **The path is the address.** `acme/support/agent.prompt` is published as `priompt://acme/support/agent`.
+- **The first directory is the org.** A `.prompt` file at the repo root has no org, so validation rejects it.
+- **Slots come from the template.** Each `{name}` placeholder becomes a slot, so you never declare slots by hand.
+
+## 1. Create a prompts repo
+
+To create the repo:
+
+1. Initialize a repo on a `main` branch and set your identity. `promptctl` reads `user.name` and `user.email` from git config for its commits.
+
+   ```sh
+   git init -b main prompts && cd prompts
+   git config user.name Ada
+   git config user.email ada@example.com
+   ```
+
+2. Add a remote if you want `promptctl push` to sync it. HTTPS remotes read a token from `PRIOMPT_GIT_TOKEN`, and SSH remotes use your ssh-agent. `promptctl` doesn't use git's credential helper.
+
+   ```sh
+   git remote add origin <your-remote-url>
+   ```
+
+## 2. Write and commit a prompt
+
+`promptctl commit` validates every prompt in the tree first. One invalid file blocks the whole commit.
+
+To commit a prompt:
+
+1. Write the prompt and commit it:
+
+   ```sh
+   mkdir -p acme/support
+   echo "You are a support agent for {org}. Be concise and kind." > acme/support/agent.prompt
+   promptctl commit -m "first prompt"
+   ```
+
+   ```text title="Output"
+   committed 452b2079108e
+   ```
+
+2. Add a second prompt. This one has a mistake: `{{name}}` is an escaped literal brace to most formatters, not a slot.
+
+   ```sh
+   echo "Hello {{name}}, how can I help?" > acme/support/greeting.prompt
+   promptctl commit -m "add greeting"
+   ```
+
+   ```text title="Output"
+   invalid acme/support/greeting.prompt: template uses doubled braces near "{{name}}, how can I help?\n": slots are written {name}; {{name}} is an escaped literal brace to a formatter, not a slot
+   2026/10/18 06:04:37 1 invalid prompt(s); nothing committed
+   ```
+
+   The command exits with status 1, and nothing is committed.
+
+3. Fix the template and commit again:
+
+   ```sh
+   echo "Hello {name}, how can I help?" > acme/support/greeting.prompt
+   promptctl commit -m "add greeting"
+   ```
+
+   ```text title="Output"
+   committed 6545940c0e26
+   ```
+
+## 3. Check what an edit means
+
+`promptctl diff` runs the [semantic diff](../concepts/semantic-diff.md) on every prompt that differs from a git ref (default `HEAD`). The last line of each block is the verdict: `minor edit`, `localized tweak`, or `structural`.
+
+To check an edit:
+
+1. Edit the agent prompt:
+
+   ```sh
+   echo "You are a support agent for {org}. Be concise, kind, and cite the help center." > acme/support/agent.prompt
+   ```
+
+2. Diff the working tree against `HEAD`:
+
+   ```sh
+   promptctl diff
+   ```
+
+   ```text title="Output"
+   ## acme/support/agent.prompt
+   change @ new lines 1-1 (old 1-1): replace
+     Signal 2 (point delta): 0.126
+     Signal 3 up:   ±2=0.126 (boundary)
+     Signal 3 down: ±2=0.126 (boundary)
+     => minor edit
+   ```
+
+3. Diff against an older ref to see several changes at once. A prompt that doesn't exist at the ref is compared with an empty template, so it reads as `structural`:
+
+   ```sh
+   promptctl diff HEAD~1
+   ```
+
+   ```text title="Output"
+   ## acme/support/agent.prompt
+   change @ new lines 1-1 (old 1-1): replace
+     Signal 2 (point delta): 0.126
+     Signal 3 up:   ±2=0.126 (boundary)
+     Signal 3 down: ±2=0.126 (boundary)
+     => minor edit
+
+   ## acme/support/greeting.prompt
+   change @ new lines 1-1 (old 1-0): insert
+     Signal 2 (point delta): 1.000
+     Signal 3 up:   ±2=1.000 (boundary)
+     Signal 3 down: ±2=1.000 (boundary)
+     => structural
+   ```
+
+`promptctl diff` exits with status 0 whatever the verdict. To fail a build on `structural`, see [Gate prompt changes in CI](./ci.mdx). Without an embedding model, the diff compares words, not meaning. To score meaning, see [Use a real embedding model](./embedding-model.md).
+
+## 4. Commit and review history
+
+To commit the edit and see a prompt's history:
+
+1. Commit the edit:
+
+   ```sh
+   promptctl commit -m "cite the help center"
+   ```
+
+   ```text title="Output"
+   committed 7876cc4189ce
+   ```
+
+2. List every commit that touched the prompt, newest first:
+
+   ```sh
+   promptctl log acme/support/agent.prompt
+   ```
+
+   ```text title="Output"
+   7876cc41 cite the help center
+   452b2079 first prompt
+   ```
+
+## 5. Push and publish
+
+`promptctl push` validates every prompt, pushes all local branches to `origin`, and then publishes every prompt in the working tree to the server given by `-server`. Publishing is idempotent: unchanged prompts don't create commits or notify subscribers.
+
+To publish:
+
+1. Set your token if the server has authentication on. `promptctl` sends it as a bearer token.
+
+   ```sh
+   export PRIOMPT_TOKEN=<token>
+   ```
+
+2. Push and publish:
+
+   ```sh
+   promptctl push -server localhost:8443
+   ```
+
+   ```text title="Output"
+   pushed
+   published priompt://acme/support/agent (a4a2959e6ed2)
+   published priompt://acme/support/greeting (033b02b3e3f7)
+   ```
+
+   The hash after each URI is the version the server now serves.
+
+3. Run the same command again with no changes. Git has nothing to push, and the server keeps the same versions:
+
+   ```text title="Output"
+   already up to date
+   published priompt://acme/support/agent (a4a2959e6ed2)
+   published priompt://acme/support/greeting (033b02b3e3f7)
+   ```
+
+To publish without touching the git remote, use `promptctl publish -server localhost:8443`. Pass file paths after the flags to publish only those prompts. For a TLS server, add `-tls -ca-cert <ca.pem>`, where `<ca.pem>` is the CA that signed the server's certificate. `-tls` doesn't work without `-ca-cert`.
+
+## 6. Promote between environments
+
+Environments are git branches. `promptctl promote` copies one prompt from one branch onto another, validates it, and commits it there.
+
+To promote a prompt:
+
+1. Create the environment branches once:
+
+   ```sh
+   git branch staging
+   git branch prod
+   ```
+
+2. Commit a change on `main`, then promote it one step at a time:
+
+   ```sh
+   echo "You are a support agent for {org}. Be concise and kind. Cite the help center when you can." > acme/support/agent.prompt
+   promptctl commit -m "soften citation rule"
+   promptctl promote acme/support/agent.prompt main staging
+   promptctl promote acme/support/agent.prompt staging prod
+   ```
+
+   ```text title="Output"
+   committed fd503c353514
+   promoted acme/support/agent.prompt onto staging (26831f11d647)
+   promoted acme/support/agent.prompt onto prod (7815a16a0a9d)
+   ```
+
+   `promote` checks out the target branch and leaves you on it. After these two commands, the working tree is `prod`.
+
+3. Publish the `prod` working tree to the production server:
+
+   ```sh
+   promptctl push -server prompts.example.com:8443 -tls -ca-cert ca.pem
+   ```
+
+   ```text title="Output"
+   pushed
+   published priompt://acme/support/agent (58a297711285)
+   published priompt://acme/support/greeting (033b02b3e3f7)
+   ```
+
+Promoting a prompt that already matches prints `already up to date: acme/support/agent.prompt on prod matches staging` and commits nothing.
+
+:::note
+Each environment branch publishes to its own server's `main`. The server's own branches are a separate feature for agents. See [Branch, pin, and roll back a prompt](./branch-pin-rollback.mdx).
+:::
+
+## Next steps
+
+- [Gate prompt changes in CI](./ci.mdx): validate and diff every pull request.
+- [Use a real embedding model](./embedding-model.md): get verdicts that compare meaning, not words.
+- [Hot-reload prompts safely](./hot-reload.mdx): decide what an agent does when you publish.
+- [promptctl reference](../reference/promptctl.md): every command and environment variable.

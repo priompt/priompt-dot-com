@@ -1,34 +1,212 @@
 ---
-title: promptctl
+title: promptctl CLI
+sidebar_label: promptctl
+description: "Every promptctl command, its flags, output, and exit codes."
+doc_type: reference
 ---
 
-# `promptctl` command reference
+`promptctl` manages prompts stored as `*.prompt` files in a git repository. It validates prompts before they're committed, runs the semantic diff between git revisions, promotes prompts between branches, and publishes them to a Priompt server.
 
 ```text
-promptctl commit -m "msg"                     validate every *.prompt, then commit changes
-promptctl diff [ref]                          semantic diff vs ref (default HEAD)
-promptctl log <file.prompt>                   version lineage of one prompt
-promptctl promote <file.prompt> <from> <to>   bring a prompt from one branch onto another
-promptctl push [-server host:port]            validate, git push, then publish to the server
-promptctl pull                                sync with origin
-promptctl publish -server host:port [paths…]  publish to the server + notify subscribers
+promptctl commit|diff|log|promote|push|pull|publish [args]
 ```
 
-| Flag | Commands | |
-| --- | --- | --- |
-| `-m` | `commit` | commit message |
-| `-server` | `push`, `publish` | Priompt server address. Without it, `push` only git-pushes. |
-| `-tls`, `-ca-cert` | `push`, `publish` | TLS to the server |
+Run `promptctl` from the root of the repository. It finds every `*.prompt` file under the current directory, and the file's path becomes its address: `acme/support/agent.prompt` is `priompt://acme/support/agent`. The first directory is the org, so a `.prompt` file at the root is invalid.
 
-## What "invalid" means here
+Slots come from the template: every `{name}` is a slot. `promptctl` has no `-slot` flag.
 
-- an empty template or an empty slot name
-- a `.prompt` file at the repo root (it has no org)
-- `{{name}}`: doubled braces are an escaped literal to a formatter, so the slot would never be filled
-- `{name`: an unclosed brace is just literal text
+## Commands
 
-One invalid file blocks the whole commit.
+| Command | Description |
+| --- | --- |
+| [`commit`](#commit) | Validate every prompt, then commit all changes in the working tree. |
+| [`diff`](#diff) | Semantic diff of every changed prompt against a git revision. |
+| [`log`](#log) | List the commits that touched one prompt. |
+| [`promote`](#promote) | Copy one prompt from one branch to another and commit it there. |
+| [`push`](#push) | Validate, push to the git remote, and optionally publish to a server. |
+| [`pull`](#pull) | Pull from the git remote. |
+| [`publish`](#publish) | Publish prompts to a server without touching git. |
+
+## Exit codes
+
+- **`0`**: Success, including `diff` with a `structural` verdict.
+- **`1`**: The command failed. The reason is on stderr, for example `2 invalid prompt(s); nothing committed`.
+- **`2`**: Unknown command, or a flag that isn't defined.
+
+`diff` reports verdicts but doesn't fail on them. To block a structural change in CI, check the output for `=> structural`. See [Gate prompt changes in CI](../guides/ci.mdx).
 
 ## Environment
 
-`PRIOMPT_EMBED_URL`, `PRIOMPT_EMBED_MODEL`, `PRIOMPT_EMBED_KEY`, `PRIOMPT_GIT_TOKEN`, and `PRIOMPT_TOKEN`. See the [authoring guide](../guides/promptctl.md#configuration).
+| Env var | Read by | Description |
+| --- | --- | --- |
+| `PRIOMPT_TOKEN` | `push`, `publish` | Bearer token sent to the server. Needs write access. |
+| `PRIOMPT_GIT_TOKEN` | `push`, `pull` | Password for an HTTPS remote. SSH remotes use the running ssh-agent. |
+| `PRIOMPT_EMBED_URL`, `PRIOMPT_EMBED_MODEL`, `PRIOMPT_EMBED_KEY` | `diff` | Embedding endpoint for the semantic diff. Without a URL, `diff` uses the offline lexical embedder. |
+
+`promptctl` doesn't read `PRIOMPT_URL`. Pass the server address with `-server`.
+
+## commit
+
+Validates every `*.prompt` file in the working tree, then stages all changes and commits them. One invalid prompt blocks the whole commit. The author comes from the repository's git config.
+
+```text
+promptctl commit -m <message>
+```
+
+| Flag | Env var | Default | Description |
+| --- | --- | --- | --- |
+| `-m` | | | Commit message. Required. |
+
+**Example**
+
+```sh
+promptctl commit -m "add support agent"
+```
+
+```text title="Output"
+committed d9643f658d3c
+```
+
+With invalid prompts, each one is listed and nothing is committed:
+
+```text title="Output"
+invalid acme/support/bad.prompt: template uses doubled braces near "{{name}}\n": slots are written {name}; {{name}} is an escaped literal brace to a formatter, not a slot
+invalid root.prompt: uri has an org but no prompt path
+2 invalid prompt(s); nothing committed
+```
+
+For every validation message, see [Errors](./errors.md#invalidargument).
+
+## diff
+
+Runs the semantic diff for every `*.prompt` file that differs between a git revision and the working tree, including added and deleted files.
+
+```text
+promptctl diff [<revision>]
+```
+
+`<revision>` is any git revision: a branch, a tag, a commit hash, or `HEAD~1`. The default is `HEAD`.
+
+**Example**
+
+```sh
+promptctl diff
+```
+
+```text title="Output"
+## acme/support/agent.prompt
+change @ new lines 2-2 (old 2-2): replace
+  Signal 2 (point delta): 0.329
+  Signal 3 up:   ±2=0.114 (boundary)
+  Signal 3 down: ±2=0.134 (boundary)
+  => localized tweak
+
+```
+
+With no changes, it prints `no prompt changes vs HEAD`. An unknown revision prints `unknown ref "<revision>": reference not found` and exits `1`.
+
+## log
+
+Lists the commits that touched one prompt file, newest first, as a short hash and the first line of the message.
+
+```text
+promptctl log <file.prompt>
+```
+
+**Example**
+
+```sh
+promptctl log acme/support/agent.prompt
+```
+
+```text title="Output"
+2b638773 cover refunds
+d9643f65 add support agent
+```
+
+## promote
+
+Copies one prompt from the `<from>` branch onto the `<to>` branch, validates it, checks out `<to>`, and commits it there with the message `promote <file>: <from> -> <to>`. Both branches must exist, and the working tree should be clean.
+
+```text
+promptctl promote <file.prompt> <from> <to>
+```
+
+**Example**
+
+```sh
+promptctl promote acme/support/agent.prompt dev prod
+```
+
+```text title="Output"
+promoted acme/support/agent.prompt onto prod (18bd98a235c4)
+```
+
+`promote` leaves `<to>` checked out. If the prompt already matches, it prints `already up to date: acme/support/agent.prompt on prod matches dev` and exits `0`.
+
+## push
+
+Validates every prompt, pushes all local branches to `origin`, and then, with `-server`, publishes every `*.prompt` file in the working tree to that server.
+
+```text
+promptctl push [-server <host:port>] [-tls -ca-cert <file>]
+```
+
+| Flag | Env var | Default | Description |
+| --- | --- | --- | --- |
+| `-server` | | | Server to publish to after the push. Without it, `push` only pushes. |
+| `-tls` | | `false` | Connect to `-server` over TLS. Requires `-ca-cert`. |
+| `-ca-cert` | | | CA certificate that signed the server's certificate. |
+
+**Example**
+
+```sh
+promptctl push -server localhost:8443
+```
+
+```text title="Output"
+pushed
+published priompt://acme/support/agent (03dd6040bee8)
+```
+
+When the remote already has every commit, the first line is `already up to date`, and the publish step still runs. Publishing unchanged content is a no-op on the server, so only changed prompts notify subscribers. The server records the publish on `main`, whichever git branch is checked out.
+
+## pull
+
+Pulls the current branch from `origin`.
+
+```text
+promptctl pull
+```
+
+```text title="Output"
+already up to date
+```
+
+Without a remote named `origin`, `push` and `pull` print `remote not found` and exit `1`.
+
+## publish
+
+Publishes prompts to a server without touching git. With no paths, it publishes every `*.prompt` file in the working tree.
+
+```text
+promptctl publish -server <host:port> [-tls -ca-cert <file>] [<file.prompt>...]
+```
+
+| Flag | Env var | Default | Description |
+| --- | --- | --- | --- |
+| `-server` | | | Server address. Required. |
+| `-tls` | | `false` | Connect over TLS. Requires `-ca-cert`. |
+| `-ca-cert` | | | CA certificate that signed the server's certificate. |
+
+**Example**
+
+```sh
+PRIOMPT_TOKEN=<token> promptctl publish -server localhost:8443 acme/support/agent.prompt
+```
+
+```text title="Output"
+published priompt://acme/support/agent (0d7b8729099a)
+```
+
+`<token>` is a token with write access. Each prompt is validated before it's sent, and the first failure stops the run.

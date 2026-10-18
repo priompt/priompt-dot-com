@@ -5,6 +5,87 @@ description: "Find a prompt, read it, and see every version."
 doc_type: ui-guide
 ---
 
-:::info Draft
-This page is being written.
-:::
+This guide shows how to find a prompt in the web UI, read its template and slots, and list every commit it has had. You can also search a namespace for a word in a prompt's path or text.
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+- **The web UI running and connected to a server**: see [Run the web UI](./run.md).
+- **A `read` or `rw` token** in the UI's configuration, if the server has authentication on.
+
+## 1. Open a namespace
+
+The home page lists every **namespace**, an org such as `acme`, with the number of prompts in it.
+
+To open a namespace:
+
+1. Open the UI's home page.
+2. Select the namespace, for example **acme**.
+
+   ![Dashboard showing the Namespaces list with acme (7 prompts), demo (1 prompt), and globex (3 prompts).](/img/ui/01-dashboard.png)
+
+   *The dashboard lists every namespace on the server.*
+
+   The **Prompts** tab opens on branch `main`, marked **SERVING** because Priompt serves `main` to agents.
+
+   ![The acme namespace on branch main, marked Serving, with folders agents, content, onboarding, and support, and the file system-prompt.prompt.](/img/ui/02-namespace.png)
+
+   *Folders and prompts in the acme namespace.*
+
+## 2. Read a prompt
+
+A prompt's path in the UI matches its address. `onboarding/welcome.prompt` in `acme` is `priompt://acme/onboarding/welcome`.
+
+To read a prompt:
+
+1. Select a folder, for example **onboarding**.
+2. Select the prompt, for example **welcome.prompt**.
+
+   ![Prompt view of onboarding/welcome.prompt on main: the template with its slots highlighted, file info, the Detected slots panel, and the Live badge.](/img/ui/03-prompt-viewer.png)
+
+   *The prompt view shows the template, its slots, and the commit it was read from.*
+
+The prompt view shows:
+
+- **The template**, with each **slot**, a named blank like `{name}` that your app fills in, highlighted.
+- **File info**: the branch, the short hash of the latest commit, its author, and the size.
+- **Detected slots**: every slot in the template.
+- **Live**: shown when the UI is connected to the server's NATS broker. The page reloads the prompt when someone publishes a new version. To turn it on, set `PRIOMPT_NATS_URL` (see [Run the web UI](./run.md)).
+
+**Copy** copies the template to your clipboard.
+
+## 3. See a prompt's history
+
+To list a prompt's commits:
+
+1. On the prompt view, select **History**.
+
+   ![Commits view for /onboarding/welcome.prompt listing four commits, newest "Offer project import as a first step" (861d338), oldest "seed: demo prompt".](/img/ui/07-history.png)
+
+   *Every commit of the prompt on `main`, newest first.*
+
+Each row shows the commit message, the author, the age, and the short hash. Commits published from the CLI show **(no message)**. Select a commit to open its diff and verdict, as described in [Review a commit and its verdict](./review-commit.mdx).
+
+Use the prompt's **History** button, not the namespace's **History** tab. The tab has no prompt selected, so it shows an empty list.
+
+## 4. Search a namespace
+
+Search matches a word in prompt paths and template text. It has no menu entry yet, so you open it by URL.
+
+To search a namespace:
+
+1. Go to `/<org>/search`, for example `/acme/search`.
+2. Type a word, for example `ticket`, and press Enter.
+
+   ![Search acme for "ticket": 2 results, support/escalate and support/triage, each with its matching first line.](/img/ui/15-search.png)
+
+   *Each result links to the prompt and shows the first matching line.*
+
+Search reads the templates on `main` and checks at most the first 200 prompts in a namespace. The page tells you when it stopped early.
+
+## Next steps
+
+- [Edit and publish a prompt](./edit-and-publish.mdx): change the template you're reading.
+- [Review a commit and its verdict](./review-commit.mdx): read what a change did.
+- [Prompts and addresses](../../concepts/prompts.md): how addresses, templates, and slots fit together.
