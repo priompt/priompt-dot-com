@@ -22,7 +22,7 @@ Not published yet:
 
 ## Known gaps
 
-Each gap links to the page it affects:
+Each gap links to the page it affects. Open bugs, each linked to its GitHub issue, are listed in [Known issues](/reference/known-issues).
 
 - **Merges take the source branch's content.** Three-way automatic merges aren't implemented. See [Branch, pin, and roll back a prompt](/guides/branch-pin-rollback).
 - **The web UI's branch, compare, search, and settings pages use sample data.** The server has no `ListBranches` RPC yet. See [Web UI overview](/guides/web-ui).
