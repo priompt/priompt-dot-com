@@ -75,6 +75,7 @@ const sidebars: SidebarsConfig = {
     "reference/errors",
     "reference/glossary",
     "reference/changelog",
+    "reference/known-issues",
   ],
   contribute: [
     "contributing/development",
