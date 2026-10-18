@@ -91,7 +91,7 @@ To add scoped tokens:
    <acme-contractor-token> acme 2026-12-31 rw
    ```
 
-   Replace each `<...-token>` with a value from `priompt gen-token`. Put comments on their own lines. The server reads a word after the token as a field, so `<token> # read-only` scopes the token to an org named `read-only`.
+   Replace each `<...-token>` with a value from `priompt gen-token`. From v0.7.3, `#` starts a comment anywhere after the token. In v0.7.2 and earlier, the server reads a word after the token as a field, so `<token> # read-only` scopes the token to an org named `read-only`; on those versions, put comments on their own lines.
 
 3. Restart the server so it reads the file again.
 

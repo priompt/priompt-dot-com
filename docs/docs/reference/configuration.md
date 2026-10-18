@@ -77,7 +77,7 @@ Each `<token-n>` is a token from `priompt gen-token`. The fields after the token
 - **Expiry**: A date (`2026-12-31`) or an RFC 3339 timestamp (`2026-12-31T18:00:00Z`). After it, the server answers `Unauthenticated` with `token expired`. No expiry means the token never expires.
 - **`rw`**: Grants write access (publish, branch, merge, roll back). Without it the token is read-only. `ro` states read-only explicitly.
 
-Blank lines and lines that start with `#` are ignored. A `#` later in a line isn't a comment: its words become fields, and the last plain word becomes the org. Keep comments on their own lines.
+Blank lines and lines that start with `#` are ignored. From v0.7.3, a `#` after the token also starts a comment, and a line with two org words or two expiries is an error that stops the server from starting. In v0.7.2 and earlier, a later `#` isn't a comment: its words become fields and the last plain word becomes the org, so keep comments on their own lines.
 
 The server reads the file at startup. To rotate a token, add the new token, give the old one an expiry, restart, and remove the old line once it has expired.
 

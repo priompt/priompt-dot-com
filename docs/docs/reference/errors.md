@@ -108,7 +108,7 @@ The token is valid but isn't allowed to do this. Don't retry with the same token
 | `token not authorized for org "<org>"` | The token is scoped to another org than the URI's first segment. | Use a token for that org, or an admin token (no org). |
 | `token not authorized for prefix "<prefix>"` | `ListPrompts` with an org-scoped token and a prefix outside its org. An empty prefix is outside every org. | Pass `priompt://<org>` or `priompt://<org>/<path>` as the prefix. |
 
-The tokens file ignores whole-line `#` comments only. A trailing comment on a token line becomes part of the line, and its last plain word becomes the org. For example, `<token> acme rw # ci runner` scopes the token to the org `runner`. Put comments on their own line.
+In v0.7.2 and earlier, the tokens file ignores whole-line `#` comments only. A trailing comment on a token line becomes part of the line, and its last plain word becomes the org: `<token> acme rw # ci runner` scopes the token to the org `runner`. Put comments on their own line, or upgrade to v0.7.3, where a trailing `#` starts a comment.
 
 **Example**
 

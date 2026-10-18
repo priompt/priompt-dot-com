@@ -120,7 +120,7 @@ acme-authors acme rw
 acme-readers acme
 ```
 
-Blank lines and lines that start with `#` are ignored. A `#` later in a line isn't a comment, so keep comments on their own lines. The files are read at startup; to revoke a client, delete its line and restart.
+Blank lines and lines that start with `#` are ignored. From v0.7.3, a `#` after the first field also starts a comment, and a line with two org words is rejected at startup. In v0.7.2 and earlier, a later `#` isn't a comment, so keep comments on their own lines. The files are read at startup; to revoke a client, delete its line and restart.
 
 ## Endpoints
 

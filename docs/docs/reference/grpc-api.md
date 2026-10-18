@@ -235,7 +235,7 @@ Returns a branch's commits, newest first, following first parents only (like `gi
 | `parent2` | `string` | The merged branch's tip. Set only on merge commits. |
 | `author` | `string` | Who published it. |
 | `message` | `string` | Commit message. |
-| `created_at` | `string` | RFC 3339 timestamp, UTC. |
+| `created_at` | `string` | UTC timestamp in RFC 3339 with variable-length fractional seconds (Go's `RFC3339Nano`), for example `2026-10-18T09:41:10.123456Z`. Don't assume a fixed width. |
 
 **Errors**: `NotFound` (`branch not found`), `PermissionDenied`.
 

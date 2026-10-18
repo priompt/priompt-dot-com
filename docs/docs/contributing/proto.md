@@ -47,7 +47,7 @@ To change the contract:
 
    No output and exit code `0` means nothing breaks.
 
-`buf lint` currently reports that `DiffPromptResponse` is used by two RPCs (`DiffPrompt` and `DiffCommits`). That's a known exception, and `buf breaking` is the check that matters.
+`buf lint` passes. `DiffPromptResponse` is shared by `DiffPrompt` and `DiffCommits` on purpose, and both RPCs carry an explicit `buf:lint:ignore` comment that says why. CI runs `buf lint` and `buf breaking` on every pull request.
 
 ## 2. Update the Python SDK
 
