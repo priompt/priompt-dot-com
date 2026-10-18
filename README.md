@@ -10,7 +10,7 @@ itself lives at https://github.com/priompt/priompt.
 - **Next.js 16** (App Router) + React 19, TypeScript
 - **Tailwind CSS v4** + shadcn/ui components
 - **Framer Motion** for the mobile nav sheet and hero interactions
-- Deployed to **Cloudflare Workers** via the [OpenNext](https://opennext.js.org/cloudflare) adapter
+- Static export (`output: "export"`) deployed to **Cloudflare Pages**
 
 ## Project layout
 
@@ -21,7 +21,7 @@ itself lives at https://github.com/priompt/priompt.
 - `app/robots.ts`, `app/sitemap.ts`, `app/manifest.ts`,
   `app/opengraph-image.tsx`, `app/llms.txt/route.ts` — SEO/AEO metadata routes
 - `lib/site.ts` — single source of truth for site URL, name, and description
-- `lib/cloudflare-image-loader.ts` — image loader for Cloudflare Workers
+- `lib/cloudflare-image-loader.ts` — optional Cloudflare image loader
 
 ## Develop
 
@@ -33,17 +33,19 @@ pnpm dev          # http://localhost:3000
 ## Build & deploy
 
 ```bash
-pnpm build        # next build
-pnpm preview      # build + preview in the Workers runtime locally
-pnpm deploy       # build + deploy to Cloudflare Workers
+pnpm build        # next build -> static site in out/
+pnpm preview      # build + serve out/ locally
 ```
 
-Deployment runs through Cloudflare's Git integration; the deploy command is
-`pnpm run deploy` (which runs `opennextjs-cloudflare build && … deploy`), not
-`wrangler deploy` directly.
+Deployment runs through Cloudflare Pages' Git integration:
+
+- Build command: `pnpm run build`
+- Build output directory: `out`
+
+`public/_headers` is copied into `out/` and applied by Pages.
 
 > **Image optimization:** the Next.js optimizer does not run on Cloudflare
-> Workers, so images are served unoptimized by default. Set
+> Pages, so images are served unoptimized by default. Set
 > `NEXT_PUBLIC_CF_IMAGE_TRANSFORM=1` to route them through Cloudflare's
 > `/cdn-cgi/image/` transformation endpoint (requires "Transformations" enabled
 > on the zone).

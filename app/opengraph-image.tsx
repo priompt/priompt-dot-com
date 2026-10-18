@@ -7,6 +7,9 @@ export const alt = site.ogImageAlt
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
 
+// Required by `output: "export"` (static build for Cloudflare Pages).
+export const dynamic = "force-static"
+
 // Dynamically generated social share image. Rendered at build time for the
 // static home route, so no runtime cost. Only flexbox + a CSS subset are
 // supported by ImageResponse (satori) — no grid, no external CSS.
