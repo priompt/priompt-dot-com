@@ -7,7 +7,7 @@ doc_type: how-to
 
 This guide runs the Priompt server from its published container image, with an admin token and a volume that keeps your prompts across restarts. The same steps work on Linux, on macOS with Docker Desktop or OrbStack, and on Windows with Docker Desktop.
 
-The image <Var name="dockerImage" /> is published for `linux/amd64` and `linux/arm64`, tagged per release (such as `:v0.7.2`) and `:latest`. It exposes `8443` (gRPC), `2112` (metrics), and `4222` (NATS).
+The image <Var name="dockerImage" /> is published for `linux/amd64` and `linux/arm64`, tagged per release (such as `:v0.7.3`) and `:latest`. It exposes `8443` (gRPC), `2112` (metrics), and `4222` (NATS). The server runs as the non-root user `priompt` (uid 10001) and keeps its database in `/data/priompt.db`.
 
 ## Prerequisites
 
@@ -42,7 +42,7 @@ To start the server in the background:
      '  -v priompt-data:/data \\',
      '  -e PRIOMPT_TOKEN=<token> \\',
      '  -e PRIOMPT_SEED=false \\',
-     '  {{dockerImage}}:v{{version}} serve -db /data/priompt.db',
+     '  {{dockerImage}}:v{{version}}',
    ].join("\n")}</Cmd>
 
    Replace `<token>` with the token from step 1.
@@ -51,10 +51,18 @@ The flags work as follows:
 
 - **`-e PRIOMPT_TOKEN`**: Every request must carry this token. The server treats it as an admin token with write access.
 - **`-e PRIOMPT_SEED=false`**: Skips the demo prompt the server otherwise stores on first start.
-- **`serve -db /data/priompt.db`**: Puts the database on the `priompt-data` volume. Arguments after the image name replace the default command, `serve`, so any server flag goes here.
+- **`-v priompt-data:/data`**: Keeps the database on the `priompt-data` volume, so it survives removing the container.
 
-:::warning Always pass -db on the volume
-In v0.7.2, the image's default command doesn't write to `/data`. A server started without `-db /data/priompt.db` loses its prompts when you remove the container. See the [Production checklist](/operations/production-checklist).
+To pass server flags, add `serve` and the flags after the image name. Arguments after the image name replace the default command, `serve`.
+
+:::warning Upgrading from v0.7.2 or earlier
+Older images ran as root, so files they wrote to a volume or bind mount are owned by root, and publishing to v0.7.3 fails with `code = Internal desc = publish failed` while the server logs `attempt to write a readonly database`. Fix the ownership once before you start the new image:
+
+```sh
+docker run --rm -v priompt-data:/data alpine chown -R 10001:10001 /data
+```
+
+Older images also wrote the database outside `/data` unless you passed `serve -db /data/priompt.db`. If you didn't, copy the database out of the old container before you remove it. Find it with `docker exec priompt find / -name priompt.db -not -path '/proc/*'`.
 :::
 
 Pin a version tag as shown. Use `:latest` only to try things out.
@@ -70,8 +78,8 @@ To check that the server is running:
    ```
 
    ```text title="Output"
-   2026/10/18 04:43:30 priompt v0.7.2 (a6f64e4fcb66a75ed1fd1826c662ce61e4c9981c) serving on :8443 (tls=false mtls=false auth=1-token cache=mem embed=lexical(offline) nats=127.0.0.1:4222 metrics=:2112 ratelimit=0/s)
-   2026/10/18 04:43:30 metrics on :2112/metrics
+   2026/10/18 18:27:16 priompt v0.7.3 (b917a28eac1eab73904841432d8cfa8da1ea4618) serving on :8443 (tls=false mtls=false auth=1-token cache=mem embed=lexical(offline) nats=127.0.0.1:4222 metrics=:2112 ratelimit=0/s)
+   2026/10/18 18:27:16 metrics on :2112/metrics
    ```
 
    `auth=1-token` means the server requires your token.
@@ -86,14 +94,14 @@ To check that the server is running:
 
 ## Run ops commands
 
-The image includes the whole `priompt` CLI. Run any command with `docker exec`, and pass paths under `/data` so they land on the volume.
+The image includes the whole `priompt` CLI. Run any command with `docker exec`. Commands run in `/data`, so they find the database without `-db`. Pass output paths under `/data` so they land on the volume.
 
 To back up the store and copy the backup to the host:
 
 1. Write the backup inside the container:
 
    ```sh
-   docker exec priompt priompt backup -db /data/priompt.db -out /data/snapshot.jsonl
+   docker exec priompt priompt backup -out /data/snapshot.jsonl
    ```
 
    ```text title="Output"
@@ -158,7 +166,7 @@ The Compose file binds gRPC on all interfaces and keeps metrics and NATS on the 
 | Name | Description |
 | --- | --- |
 | `PRIOMPT_TOKEN` | Admin bearer token. Blank turns authentication off. |
-| `PRIOMPT_NATS_TOKEN` | Token NATS subscribers must present. Required by this file. |
+| `PRIOMPT_NATS_TOKEN` | The broker's own full-rights credential. Required by this file. Agents subscribe with their API token instead. |
 | `PRIOMPT_JWKS_URL` | The `priompt-auth` `/jwks` URL. Blank turns JWT authentication off. |
 | `PRIOMPT_EMBED_URL`, `PRIOMPT_EMBED_MODEL`, `PRIOMPT_EMBED_KEY` | Embedding endpoint for the semantic diff. Blank uses the offline lexical embedder. |
 | `PRIOMPT_REDIS_URL` | Shared cache. Blank uses an in-process cache. |

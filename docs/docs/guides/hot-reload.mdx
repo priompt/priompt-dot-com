@@ -14,8 +14,8 @@ The [live updates concept page](../concepts/live-updates.md) explains how events
 Before you begin, make sure you have:
 
 - **A running Priompt server with NATS reachable** from the agent. The default broker address is `localhost:4222`. See the [Quickstart](../quickstart.mdx).
-- **The NATS token**, if the server runs with `-nats-token`. The server requires one whenever NATS listens off loopback.
-- **A client with NATS support**: install it for your language. In Node, the `nats` package comes with the SDK as an optional dependency.
+- **An API token for the broker**, if the server runs with `-nats-token`. The server requires one whenever NATS listens off loopback. Agents use their own API token, not the server's NATS token.
+- **A client with NATS support**: install it for your language. In Node, the NATS client comes with the SDK as an optional dependency.
 
 <Tabs groupId="lang">
 <TabItem value="py" label="Python">
@@ -67,7 +67,7 @@ URI = "priompt://acme/support/agent"
 AUTO_RELOAD = {"minor edit", "localized tweak", "new"}
 
 client = PromptClient(host="localhost:8443", cache_ttl=30,
-                      nats_url="nats://<nats-token>@localhost:4222")
+                      nats_url="nats://<api-token>@localhost:4222")
 prompt = client.get(URI)  # the version this agent serves
 
 def on_change(version, classification):
@@ -78,7 +78,9 @@ def on_change(version, classification):
     else:
         print("held", version[:12], f"[{classification or 'no verdict'}]", flush=True)
 
-client.subscribe(URI, on_change)
+# reload= applies the same policy to the SDK's cache: a held change stays out
+# of client.get() until cache_ttl expires.
+client.subscribe(URI, on_change, reload=AUTO_RELOAD)
 print("serving", prompt.version_hash[:12], flush=True)
 while True:
     time.sleep(1)  # your agent's work goes here; it reads `prompt`
@@ -97,7 +99,7 @@ const AUTO_RELOAD = new Set(["minor edit", "localized tweak", "new"]);
 async function main() {
   const client = new PromptClient({
     host: "localhost:8443",
-    natsUrl: "nats://<nats-token>@localhost:4222",
+    natsUrl: "nats://<api-token>@localhost:4222",
   });
   let prompt = await client.get(URI); // the version this agent serves
 
@@ -116,7 +118,7 @@ main();`}</Cmd>
 </TabItem>
 </Tabs>
 
-Replace `<nats-token>` with the server's NATS token. Without a token on the server, use `nats://localhost:4222`.
+Replace `<api-token>` with the agent's API token. Without a token on the server, use `nats://localhost:4222`. The Python example needs <Var name="pypiName" /> 0.7.1 or later for `reload=`.
 
 The example builds in two habits:
 
@@ -185,7 +187,7 @@ To see the agent hold a change:
    The agent keeps serving `564a83482e36`. The new version is still the served HEAD on the server.
 
 :::warning Holding is local to the agent
-A held change is live on the server. Any other code that calls `client.get()` gets it, and in Python the SDK refreshes its cache when the event arrives. To stop serving the change everywhere, [roll it back](./branch-pin-rollback.mdx).
+A held change is live on the server. In Python, `reload=` keeps a held change out of the SDK's cache, but only until `cache_ttl` expires, and other processes that call the server get it at once. To stop serving the change everywhere, [roll it back](./branch-pin-rollback.mdx).
 :::
 
 ## What the agent receives when
@@ -196,12 +198,12 @@ A held change is live on the server. Any other code that calls `client.get()` ge
 | Publish identical content to `main` | No | |
 | Publish to another branch | No | |
 | `SetBranch` on `main` (rollback) | Yes | The diff against the previous HEAD. |
-| `MergeBranch` into `main` | No, in v0.7.2 | |
+| `MergeBranch` into `main` that changes the content | Yes, since v0.7.3 | The diff against the previous HEAD. |
 | Any change when the embedding endpoint fails | Yes | Empty. The server logs `classify: semantic verdict unavailable, notifying without one`. |
 
 Events are best-effort, so a network blip can drop one. The `cache_ttl` on the Python client bounds how stale `client.get()` can be. An agent that keeps its own copy, like the example, should also re-read on a timer if it must converge without events.
 
-To react to changes from a shell instead of code, run `priompt watch -uri priompt://acme/support/agent -nats-url nats://<nats-token>@localhost:4222`. Its `-exec` hook gets the new version in `PRIOMPT_VERSION` and the verdict in `PRIOMPT_CLASS`.
+To react to changes from a shell instead of code, run `priompt watch -uri priompt://acme/support/agent -nats-url nats://<api-token>@localhost:4222`. Its `-exec` hook gets the new version in `PRIOMPT_VERSION` and the verdict in `PRIOMPT_CLASS`.
 
 ## Next steps
 

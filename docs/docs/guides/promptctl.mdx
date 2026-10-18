@@ -115,7 +115,7 @@ To check an edit:
      => minor edit
    ```
 
-3. Diff against an older ref to see several changes at once. A prompt that doesn't exist at the ref is compared with an empty template, so it reads as `structural`:
+3. Diff against an older ref to see several changes at once. A prompt that doesn't exist at the ref reads as `new`:
 
    ```sh
    promptctl diff HEAD~1
@@ -130,14 +130,11 @@ To check an edit:
      => minor edit
 
    ## acme/support/greeting.prompt
-   change @ new lines 1-1 (old 1-0): insert
-     Signal 2 (point delta): 1.000
-     Signal 3 up:   ±2=1.000 (boundary)
-     Signal 3 down: ±2=1.000 (boundary)
-     => structural
+   new prompt (not in HEAD~1)
+     => new
    ```
 
-`promptctl diff` exits with status 0 whatever the verdict. To fail a build on `structural`, see [Gate prompt changes in CI](./ci.mdx). Without an embedding model, the diff compares words, not meaning. To score meaning, see [Use a real embedding model](./embedding-model.md).
+`promptctl diff` exits with status 0 whatever the verdict. To fail a build on `structural`, add `-fail-on structural`, which exits with status 1 on a match. See [Gate prompt changes in CI](./ci.mdx). Without an embedding model, the diff compares words, not meaning. To score meaning, see [Use a real embedding model](./embedding-model.md).
 
 ## 4. Commit and review history
 
@@ -198,7 +195,7 @@ To publish:
    published priompt://acme/support/greeting (033b02b3e3f7)
    ```
 
-To publish without touching the git remote, use `promptctl publish -server localhost:8443`. Pass file paths after the flags to publish only those prompts. For a TLS server, add `-tls -ca-cert <ca.pem>`, where `<ca.pem>` is the CA that signed the server's certificate. `-tls` doesn't work without `-ca-cert`.
+To publish without touching the git remote, use `promptctl publish -server localhost:8443`. Pass file paths after the flags to publish only those prompts. For a TLS server, add `-tls`. For a certificate from a private CA, also add `-ca-cert <ca.pem>`, where `<ca.pem>` is the CA that signed it; without it, `promptctl` trusts the system CA roots.
 
 ## 6. Promote between environments
 
@@ -228,11 +225,12 @@ To promote a prompt:
    promoted acme/support/agent.prompt onto prod (7815a16a0a9d)
    ```
 
-   `promote` checks out the target branch and leaves you on it. After these two commands, the working tree is `prod`.
+   `promote` returns to the branch you started on, so you're still on `main`.
 
-3. Publish the `prod` working tree to the production server:
+3. Check out `prod` and publish it to the production server:
 
    ```sh
+   git checkout prod
    promptctl push -server prompts.example.com:8443 -tls -ca-cert ca.pem
    ```
 

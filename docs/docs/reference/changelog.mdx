@@ -7,9 +7,54 @@ doc_type: reference
 
 This page lists the changes in each Priompt release, newest first. Version numbers follow the server repository (`github.com/priompt/priompt`); the other repositories have their own tags, listed with the release they shipped in.
 
-## Unreleased
+## v0.7.3
 
-- **Dev seed script**: `seed-dev.sh` in the server repository runs on Linux and macOS and from any directory. It uses the `priompt` or `priompt.exe` binary next to it, else `priompt` on the `PATH`.
+Released 2026-10-18. Ships with `proto`, `db-adapters`, `auth`, and `cli` v0.7.1, `priompt-sdk` 0.7.1, and `@priompt/client` 0.1.1.
+
+:::warning Upgrading Docker volumes
+The image now runs as uid 10001 instead of root. Before you start it on a volume that an older image wrote, run `docker run --rm -v <volume>:/data alpine chown -R 10001:10001 /data`. See [Install with Docker](/installation/docker).
+:::
+
+**Security.** These advisories are fixed in this release:
+
+- [GHSA-6rcm-p855-wm85](https://github.com/priompt/priompt/security/advisories/GHSA-6rcm-p855-wm85) (high): the NATS broker token gave every holder full rights across orgs. Subscribers now use their own API token, limited to their org.
+- [GHSA-v49j-3wx9-7frw](https://github.com/priompt/priompt/security/advisories/GHSA-v49j-3wx9-7frw) (medium): addresses with dots could share a NATS subject. Subjects now percent-encode segment bytes outside `[A-Za-z0-9_-]`. Use the SDK releases above.
+- [GHSA-v7x7-f94j-4x29](https://github.com/priompt/priompt/security/advisories/GHSA-v7x7-f94j-4x29) (medium): `DiffCommits` didn't check that both commits belong to the requested prompt.
+
+**Server and `priompt` CLI**
+
+- **Docker**: the database lives on the `/data` volume with the default command, and the image runs as a non-root user ([#12](https://github.com/priompt/priompt/issues/12)).
+- **Merge events**: `MergeBranch` into `main` notifies subscribers with the verdict ([#13](https://github.com/priompt/priompt/issues/13)).
+- **TLS flags**: `-tls-cert` without `-tls-key`, or the reverse, stops the server ([#14](https://github.com/priompt/priompt/issues/14)).
+- **`watch`**: logs the NATS URL as `nats://***@host` ([#15](https://github.com/priompt/priompt/issues/15)).
+- **`put` and `import`**: validate, and commit to `main`; identical content is a no-op ([#16](https://github.com/priompt/priompt/issues/16)).
+- **`publish`**: prints `unchanged … already served; no change event sent` for a no-op, and still sends the event when the cache clear fails ([#17](https://github.com/priompt/priompt/issues/17)).
+- **Encryption key**: a missing or wrong `PRIOMPT_ENCRYPTION_KEY` stops the server at startup ([#18](https://github.com/priompt/priompt/issues/18)).
+- **Semantic diff**: a trailing newline doesn't change the verdict. The demo prompt now ends with a newline, so its version hash is `22e5cc10ac0f` instead of `e345dcf74d01` ([#19](https://github.com/priompt/priompt/issues/19)).
+- **`init` on Windows**: prints PowerShell syntax ([#20](https://github.com/priompt/priompt/issues/20)).
+- **Template files**: the CLI strips a UTF-8 byte-order mark, converts CRLF to LF, and rejects UTF-16 ([#21](https://github.com/priompt/priompt/issues/21)).
+- **Dev seed script**: `seed-dev.sh` runs on Linux and macOS and from any directory ([#22](https://github.com/priompt/priompt/issues/22)).
+- **Branch publishes**: republishing a branch tip's content is a no-op ([#23](https://github.com/priompt/priompt/issues/23)).
+- **`ListPrompts`**: an empty prefix with an org-scoped token lists that org ([#24](https://github.com/priompt/priompt/issues/24)).
+- **Audit log**: lines for JWT callers include `sub` ([#25](https://github.com/priompt/priompt/issues/25)).
+
+**Modules**
+
+- **`auth` v0.7.1**: a `#` after the first field starts a comment in tokens, clients, and groups files; two org words or two expiries on a line is an error ([auth#2](https://github.com/priompt/auth/issues/2)).
+- **`proto` v0.7.1**: an edit to the last line is one `replace` hunk ([proto#5](https://github.com/priompt/proto/issues/5)); `buf lint` passes ([proto#3](https://github.com/priompt/proto/issues/3)); `created_at` is documented as `RFC3339Nano` ([proto#4](https://github.com/priompt/proto/issues/4)).
+- **`cli` v0.7.1 (`promptctl`)**: `diff -fail-on` exits `1` on a matching verdict, and added prompts read `new` ([cli#3](https://github.com/priompt/cli/issues/3)); `-tls` without `-ca-cert` trusts the system CA roots ([cli#4](https://github.com/priompt/cli/issues/4)); `promote` returns to the branch you started on ([cli#5](https://github.com/priompt/cli/issues/5)).
+- Every repository now carries the Apache-2.0 `LICENSE` file.
+
+**SDKs**
+
+- **`priompt-sdk` 0.7.1**: `subscribe(..., reload=)` applies a reload policy to the cache ([python-sdk#3](https://github.com/priompt/python-sdk/issues/3)); a wrong broker token or an unreachable broker raises `ConnectionError` ([python-sdk#4](https://github.com/priompt/python-sdk/issues/4)); reads `PRIOMPT_TOKEN` ([python-sdk#5](https://github.com/priompt/python-sdk/issues/5)); new subject encoding.
+- **`@priompt/client` 0.1.1**: uses `@nats-io/transport-node` ([js-sdk#5](https://github.com/priompt/js-sdk/issues/5)); a wrong broker token rejects at once with `Authorization Violation` ([js-sdk#6](https://github.com/priompt/js-sdk/issues/6)); reads `PRIOMPT_TOKEN` ([js-sdk#7](https://github.com/priompt/js-sdk/issues/7)); new subject encoding. Not on npm yet; see [Known issues](./known-issues.md).
+
+**Web UI** (from the `ui` repository's `main`)
+
+- **Check impact** returns the real verdict ([ui#4](https://github.com/priompt/ui/issues/4)); the commit dialog saves the extended description ([ui#5](https://github.com/priompt/ui/issues/5)); **Create branch** keeps the selected prompt ([ui#6](https://github.com/priompt/ui/issues/6)).
+- Branches beyond the four conventional names can be shown by name ([ui#7](https://github.com/priompt/ui/issues/7)), and the Rollback list can roll forward, with **Undo** after a rollback ([ui#8](https://github.com/priompt/ui/issues/8)). Both are partial until [priompt#45](https://github.com/priompt/priompt/issues/45).
+- A branch switcher, **Compare** buttons, navbar search inside a namespace, and a namespace **History** tab that lists prompts ([ui#9](https://github.com/priompt/ui/issues/9)); assorted cosmetic fixes ([ui#10](https://github.com/priompt/ui/issues/10)).
 
 ## v0.7.2
 

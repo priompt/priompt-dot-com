@@ -24,7 +24,7 @@ The table shows what the client wraps. Everything else in the [gRPC API](../refe
 | Pin a branch or commit | Yes | `get(uri, ref=...)` |
 | List prompts under a prefix | Yes | `list(prefix)` |
 | Semantic diff of a draft | Yes | `diff(uri, new_template)` |
-| Subscribe to changes | Yes | `subscribe(uri, on_change)` |
+| Subscribe to changes | Yes | `subscribe(uri, on_change, reload=None)` |
 | Local cache | Yes | `cache_ttl=` |
 | Publish | No | Stubs: `PublishPrompt` |
 | History, branches, merge, rollback | No | Stubs: `History`, `CreateBranch`, `MergeBranch`, `SetBranch` |
@@ -37,7 +37,7 @@ To install the client:
 
    <Cmd lang="sh">{`pip install {{pypiName}}`}</Cmd>
 
-   <Cmd lang="text" title="Output">{`Successfully installed grpcio-1.84.0 {{pypiName}}-0.7.0 protobuf-7.36.2 typing-extensions-4.16.0`}</Cmd>
+   <Cmd lang="text" title="Output">{`Successfully installed grpcio-1.84.0 {{pypiName}}-0.7.1 protobuf-7.36.2 typing-extensions-4.16.0`}</Cmd>
 
 2. If you plan to call `subscribe()`, install the `nats` extra as well:
 
@@ -84,9 +84,13 @@ client.close()
 
 ```text title="Output"
 Hi {name}, welcome to {org}!
-['name', 'org'] e345dcf74d01
+
+['name', 'org'] 22e5cc10ac0f
 Hi Ada, welcome to Acme!
+
 ```
+
+The blank lines come from the template, which ends with a newline.
 
 The response has these fields:
 
@@ -106,15 +110,15 @@ The response has these fields:
 | --- | --- | --- | --- |
 | `host` | `None` | | Server address as `host:port`. When set, the client doesn't read `url` or `PRIOMPT_URL`. |
 | `url` | `None` | `PRIOMPT_URL` | Connection URL, `priompt://<token>@host:port`. Read only when `host` is not set. |
-| `token` | `None` | | Bearer token, sent as `authorization: Bearer <token>`. Wins over the token in the URL. |
+| `token` | `None` | `PRIOMPT_TOKEN` | Bearer token, sent as `authorization: Bearer <token>`. |
 | `tls` | `False` | | Connect over TLS. |
 | `ca_cert` | `None` | | Path to the CA certificate that signed the server's certificate. Without it, the system roots are used. |
 | `client_cert` | `None` | | Path to a client certificate, for a server that requires mTLS. Pass it together with `client_key`. |
 | `client_key` | `None` | | Path to the client certificate's private key. |
 | `cache_ttl` | `0` | | Seconds to keep `get()` and `list()` results in memory. `0` turns the cache off. See [Caching](../operations/caching.md). |
-| `nats_url` | `None` | | Broker URL for `subscribe()`, such as `nats://<nats-token>@127.0.0.1:4222`. |
+| `nats_url` | `None` | | Broker URL for `subscribe()`, such as `nats://<api-token>@127.0.0.1:4222`. |
 
-The client doesn't read `PRIOMPT_TOKEN`. Pass the token with `token=` or inside `PRIOMPT_URL`. Without `host`, `url`, or `PRIOMPT_URL`, the constructor raises `ValueError: PromptClient needs host=, url=, or PRIOMPT_URL`.
+The token comes from `token=` first, then `PRIOMPT_TOKEN`, then the token inside `url` or `PRIOMPT_URL`, the same order as the `priompt` CLI. Without `host`, `url`, or `PRIOMPT_URL`, the constructor raises `ValueError: PromptClient needs host=, url=, or PRIOMPT_URL`.
 
 ## List prompts under a prefix
 
@@ -216,11 +220,11 @@ now serving: bd45a4721079
 
 How the callback runs:
 
-- **On a background thread.** `subscribe()` returns that thread at once. It's a daemon thread, so it stops when your program exits.
-- **After a refetch.** The client drops the prompt from its local cache and fetches the new version before it calls you, so the next `get()` is fresh.
+- **On a background thread.** `subscribe()` returns that thread once the subscription is in place. It's a daemon thread, so it stops when your program exits. If the broker is unreachable or refuses the token, `subscribe()` raises `ConnectionError` instead, for example `subscribe: cannot connect to NATS at 127.0.0.1:4222: nats: 'Authorization Violation'`.
+- **After the reload policy.** With `cache_ttl` set, `reload` decides whether a change replaces the cached copy before your function runs. Pass a set of verdicts, such as `reload={"minor edit", "localized tweak", "new"}`, or a function `(version, classification) -> bool`. A change it accepts is fetched into the cache, so the next `get()` returns it. Any other change is held: `get()` keeps returning the cached version until `cache_ttl` expires. The default, `None`, holds every change.
 - **With a verdict.** `classification` is `structural`, `localized tweak`, `minor edit`, `new` (first publish), or an empty string when the server couldn't classify the change.
 
-Events fire when `main` moves through a publish or a rollback. To decide which verdicts your agent reloads on its own, see [Hot-reload prompts safely](../guides/hot-reload.mdx). When the broker requires a token, put it in the URL: `nats://<nats-token>@prompts.example.com:4222`.
+Events fire when `main` moves through a publish, a merge, or a rollback. To decide which verdicts your agent reloads on its own, see [Hot-reload prompts safely](../guides/hot-reload.mdx). When the broker requires a token, put your API token in the URL: `nats://<api-token>@prompts.example.com:4222`. Use <Var name="pypiName" /> 0.7.1 or later with a v0.7.3 server, because older SDKs compute a different subject for addresses that contain `.` or other punctuation.
 
 ## Connect over TLS or mTLS
 

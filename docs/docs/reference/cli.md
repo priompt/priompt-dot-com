@@ -79,6 +79,8 @@ wrote admin token to tokens.txt
   point client:  export PRIOMPT_URL=priompt://<token>@localhost:8443
 ```
 
+On Windows, the last line uses PowerShell syntax: `$env:PRIOMPT_URL = "priompt://<token>@localhost:8443"`.
+
 `<token>` is 64 hex characters. The file holds one line, `<token> rw`. A second run prints `tokens.txt already exists; pass -force to overwrite` and exits `1`.
 
 ## serve
@@ -99,17 +101,19 @@ PRIOMPT_TOKEN=<token> priompt serve
 
 ```text title="Output"
 2026/10/18 04:42:32 seeded demo prompt priompt://acme/onboarding/welcome
-2026/10/18 04:42:33 priompt v0.7.2 (a6f64e4fcb66a75ed1fd1826c662ce61e4c9981c) serving on :8443 (tls=false mtls=false auth=1-token cache=mem embed=lexical(offline) nats=127.0.0.1:4222 metrics=:2112 ratelimit=0/s)
+2026/10/18 04:42:33 priompt v0.7.3 (b917a28eac1eab73904841432d8cfa8da1ea4618) serving on :8443 (tls=false mtls=false auth=1-token cache=mem embed=lexical(offline) nats=127.0.0.1:4222 metrics=:2112 ratelimit=0/s)
 2026/10/18 04:42:33 metrics on :2112/metrics
 ```
 
 `<token>` is an admin token, for example from [`gen-token`](#gen-token). The startup line summarizes the configuration: `auth` counts the static tokens, and `cache`, `embed`, `nats`, `metrics`, and `ratelimit` show what's on.
 
-`serve` exits `1` at startup if a flag combination is unsafe or incomplete. For example, `-nats-addr` on a non-loopback address without `-nats-token`, or `-client-ca` without `-tls-cert` and `-tls-key`.
+`serve` exits `1` at startup if a flag combination is unsafe or incomplete. For example, `-nats-addr` on a non-loopback address without `-nats-token`, `-tls-cert` without `-tls-key` (or the reverse), or `-client-ca` without `-tls-cert` and `-tls-key`. It also exits `1` when the database holds encrypted prompts that `PRIOMPT_ENCRYPTION_KEY` can't decrypt, with `encryption key missing or wrong: ...`.
 
 ## publish
 
 Validates a prompt and publishes it as a new commit on `main` through a running server. The server moves the served HEAD, clears the cache, and notifies subscribers. Publishing content identical to the served HEAD is a no-op that returns the same hash.
+
+`publish` reads the file as UTF-8. It strips a UTF-8 byte-order mark, converts CRLF line endings to LF, and rejects a UTF-16 file with `<file>: file is UTF-16; save as UTF-8`.
 
 ```text
 priompt publish -uri <uri> [-file <path|->] [-slot <name>]... [flags]
@@ -137,7 +141,11 @@ priompt publish -uri priompt://acme/support/agent -file v1.txt -slot org -slot n
 published priompt://acme/support/agent (54de006fe157) — subscribers notified
 ```
 
-The value in parentheses is the first 12 characters of the version hash.
+The value in parentheses is the first 12 characters of the version hash. Running the same command again changes nothing:
+
+```text title="Output"
+unchanged priompt://acme/support/agent (54de006fe157) — already served; no change event sent
+```
 
 ## diff
 
@@ -168,7 +176,7 @@ change @ new lines 1-1 (old 1-1): replace
   => minor edit
 ```
 
-The last line of each hunk is the verdict: `minor edit`, `localized tweak`, or `structural`. `diff` exits `0` whatever the verdict is. See [Semantic diff](../concepts/semantic-diff.md).
+The last line of each hunk is the verdict: `minor edit`, `localized tweak`, or `structural`. `priompt diff` exits `0` whatever the verdict is; to gate on a verdict, use `promptctl diff -fail-on`. See [Semantic diff](../concepts/semantic-diff.md).
 
 ## list
 
@@ -184,7 +192,7 @@ priompt list [-prefix <uri-prefix>] [flags]
 | `-addr` | `PRIOMPT_URL` (host) | `localhost:8443` | Server address. |
 | `-tls`, `-ca-cert`, `-cert`, `-key` | | | As in [`publish`](#publish). |
 
-An org-scoped token needs a prefix inside its org (`priompt://acme` or `priompt://acme/...`). An empty prefix returns `PermissionDenied` for it.
+With an org-scoped token, an empty prefix lists that token's org, and any other prefix must be inside the org (`priompt://acme` or `priompt://acme/...`).
 
 **Example**
 
@@ -193,7 +201,7 @@ priompt list -prefix priompt://acme/
 ```
 
 ```text title="Output"
-priompt://acme/onboarding/welcome	e345dcf74d01
+priompt://acme/onboarding/welcome	22e5cc10ac0f
 priompt://acme/support/agent	54de006fe157
 ```
 
@@ -208,7 +216,7 @@ priompt watch -uri <uri> [-nats-url <url>] [-exec <command>]
 | Flag | Env var | Default | Description |
 | --- | --- | --- | --- |
 | `-uri` | | | Prompt to watch. Required. |
-| `-nats-url` | `PRIOMPT_NATS_URL` | `nats://127.0.0.1:4222` | Broker URL. Use `nats://<token>@host:4222` when the server sets `-nats-token`. |
+| `-nats-url` | `PRIOMPT_NATS_URL` | `nats://127.0.0.1:4222` | Broker URL. When the server sets `-nats-token`, put your API token in it: `nats://<api-token>@host:4222`. The log shows it as `nats://***@host:4222`. |
 | `-exec` | | | Command to run on each change, through `sh -c` (or `cmd /c` on Windows). |
 
 The `-exec` command gets three environment variables:
@@ -253,7 +261,7 @@ priompt put -uri <uri> [-file <path|->] [-slot <name>]... [-db <dsn>] [-force]
 | `-embed-url` | `PRIOMPT_EMBED_URL` | Offline lexical embedder | OpenAI-compatible `/v1/embeddings` URL for the pre-write diff. |
 | `-embed-model` | `PRIOMPT_EMBED_MODEL` | | Embedding model name. |
 
-`put` writes the served content only. It records no commit and sends no notification, and a running server keeps serving its cached copy until the cache TTL expires. Use [`publish`](#publish) for anything a server already serves.
+`put` commits the prompt to `main` with the author `priompt` and the message `put`. Content identical to the served version is a no-op that prints `unchanged`. `put` writes the database directly, so it sends no notification, and a running server keeps serving its cached copy until the cache TTL expires. Use [`publish`](#publish) for anything a server already serves.
 
 **Example**
 
@@ -349,7 +357,7 @@ exported 2 prompts (served content only — commits and branches are not include
 
 ## import
 
-Loads an export into a database. Each line is an upsert, so running it twice is safe. `import` doesn't validate, and it writes no commits.
+Loads an export into a database. It validates every prompt first, and writes nothing if one is invalid. Then it commits each prompt to `main` with the message `import`. Prompts that already serve the same content count as unchanged, so running it twice is safe.
 
 ```text
 priompt import [-db <dsn>] [-in <path|->]
@@ -361,7 +369,7 @@ priompt import [-db <dsn>] [-in <path|->]
 | `-in` | | `-` | Input file. `-` reads stdin. |
 
 ```text title="Output"
-imported 2 prompts (served content only — history was not part of this file; use `priompt restore` for a full backup)
+imported 2 prompts, 0 unchanged (served content only — history was not part of this file; use `priompt restore` for a full backup)
 ```
 
 ## migrate
@@ -396,7 +404,7 @@ priompt version
 ```
 
 ```text title="Output"
-priompt v0.7.2 (commit unknown, go1.26.4)
+priompt v0.7.3 (commit unknown, go1.26.4)
 ```
 
 A binary from `go install` reports the module version. A `go build` inside a checkout reports the git commit, and release images report both.

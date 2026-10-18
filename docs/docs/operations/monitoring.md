@@ -29,7 +29,7 @@ curl -s 127.0.0.1:2112/metrics | grep -E "^priompt_(build_info|requests_total)"
 ```
 
 ```text title="Output"
-priompt_build_info{commit="unknown",goversion="go1.26.4",version="v0.7.2"} 1
+priompt_build_info{commit="unknown",goversion="go1.26.4",version="v0.7.3"} 1
 priompt_requests_total{code="InvalidArgument",method="/priompt.v1.PromptService/PublishPrompt"} 1
 priompt_requests_total{code="NotFound",method="/priompt.v1.PromptService/GetPrompt"} 2
 priompt_requests_total{code="OK",method="/priompt.v1.PromptService/DiffPrompt"} 4
@@ -71,7 +71,7 @@ The server writes one JSON line per request to stderr, with the method, the call
 {"time":"2026-10-18T10:20:42.690252+05:30","level":"INFO","msg":"rpc","method":"/priompt.v1.PromptService/PublishPrompt","org":"acme","uri":"priompt://acme/support/summarize","code":"OK","ms":2}
 ```
 
-`org` is empty for an admin token and for a server without authentication. Requests that fail authentication don't reach the audit log, because it runs after the token check. They're counted in `priompt_requests_total` with `code="Unauthenticated"`. Startup messages and errors are plain text on the same stream, so filter on `"msg":"rpc"` when you ship the log with journald, Docker logging, or your log agent.
+`org` is empty for an admin token and for a server without authentication. A request with a `priompt-auth` JWT also carries `"sub"`, the token's subject, such as `"sub":"ci-bot"`, after `org`. Static tokens have no subject, so their lines have no `sub`. Requests that fail authentication don't reach the audit log, because it runs after the token check. They're counted in `priompt_requests_total` with `code="Unauthenticated"`. Startup messages and errors are plain text on the same stream, so filter on `"msg":"rpc"` when you ship the log with journald, Docker logging, or your log agent.
 
 ## Limit request rates
 

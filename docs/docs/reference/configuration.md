@@ -13,7 +13,7 @@ doc_type: reference
 | --- | --- | --- | --- |
 | `-addr` | | `:8443` | gRPC listen address. |
 | `-db` | | `priompt.db` | SQLite file path, or a `postgres://` DSN. |
-| `-tls-cert` | | | TLS certificate file. TLS is on when both `-tls-cert` and `-tls-key` are set. |
+| `-tls-cert` | | | TLS certificate file. Set it together with `-tls-key`; one without the other stops the server. |
 | `-tls-key` | | | TLS private key file. |
 | `-client-ca` | | | CA certificate for client certificates. Turns on mTLS. Requires `-tls-cert` and `-tls-key`. |
 | `-tokens-file` | | | Static tokens file. See [Tokens file](#tokens-file). |
@@ -25,7 +25,7 @@ doc_type: reference
 | `-embed-model` | `PRIOMPT_EMBED_MODEL` | | Embedding model name sent to `-embed-url`. |
 | | `PRIOMPT_EMBED_KEY` | | API key sent to `-embed-url` as a bearer token. |
 | `-nats-addr` | | `127.0.0.1:4222` | Listen address of the embedded NATS broker for change events. Empty turns pub/sub off. |
-| `-nats-token` | `PRIOMPT_NATS_TOKEN` | | Token NATS clients must present. Required when `-nats-addr` isn't a loopback address. |
+| `-nats-token` | `PRIOMPT_NATS_TOKEN` | | The broker's full-rights credential, which the server publishes with. Required when `-nats-addr` isn't a loopback address. With API authentication on, subscribers present their own API token instead, with subscribe-only access to their org. |
 | `-nats-cluster-addr` | `PRIOMPT_NATS_CLUSTER_ADDR` | | Listen address for NATS cluster routes between server nodes. |
 | `-nats-cluster-secret` | `PRIOMPT_NATS_CLUSTER_SECRET` | | Shared secret for cluster peers. Required when `-nats-cluster-addr` isn't a loopback address. |
 | `-nats-routes` | `PRIOMPT_NATS_ROUTES` | | Comma-separated cluster routes of the other nodes. |
@@ -46,6 +46,8 @@ Authentication is on when the server has at least one credential source: a `-tok
 | `-nats-addr 0.0.0.0:4222 is not loopback: set -nats-token (or PRIOMPT_NATS_TOKEN) so subscribers must authenticate, or bind NATS to 127.0.0.1` | Set `-nats-token`, or keep NATS on `127.0.0.1`. |
 | `-nats-cluster-addr <addr> is not loopback: set -nats-cluster-secret ...` | Set `-nats-cluster-secret`. |
 | `-client-ca requires -tls-cert and -tls-key` | Turn on TLS, or drop `-client-ca`. |
+| `-tls-cert and -tls-key must be set together` | Pass both, or neither. |
+| `encryption key missing or wrong: ...` | The database holds encrypted prompts that the current `PRIOMPT_ENCRYPTION_KEY` can't decrypt. Set the key they were written with. |
 | `PRIOMPT_ENCRYPTION_KEY: not valid base64: ...`, `PRIOMPT_ENCRYPTION_KEY: want 32 bytes base64-encoded, got <n>` | Set a base64-encoded 32-byte key. |
 | `<tokens-file> already exists; pass -force to overwrite` | This one comes from `priompt init`, not `serve`. |
 
@@ -77,7 +79,7 @@ Each `<token-n>` is a token from `priompt gen-token`. The fields after the token
 - **Expiry**: A date (`2026-12-31`) or an RFC 3339 timestamp (`2026-12-31T18:00:00Z`). After it, the server answers `Unauthenticated` with `token expired`. No expiry means the token never expires.
 - **`rw`**: Grants write access (publish, branch, merge, roll back). Without it the token is read-only. `ro` states read-only explicitly.
 
-Blank lines and lines that start with `#` are ignored. A `#` later in a line isn't a comment: its words become fields, and the last plain word becomes the org. Keep comments on their own lines.
+Blank lines and lines that start with `#` are ignored. From v0.7.3, a `#` after the token also starts a comment, and a line with two org words or two expiries is an error that stops the server from starting. In v0.7.2 and earlier, a later `#` isn't a comment: its words become fields and the last plain word becomes the org, so keep comments on their own lines.
 
 The server reads the file at startup. To rotate a token, add the new token, give the old one an expiry, restart, and remove the old line once it has expired.
 

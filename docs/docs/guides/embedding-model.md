@@ -61,7 +61,7 @@ priompt serve -embed-url http://localhost:8080/v1/embeddings -embed-model BAAI/b
 The first log line names the embedder:
 
 ```text title="Output"
-priompt v0.7.2 serving on :8443 (... embed=BAAI/bge-small-en-v1.5@http://localhost:8080/v1/embeddings ...)
+priompt v0.7.3 serving on :8443 (... embed=BAAI/bge-small-en-v1.5@http://localhost:8080/v1/embeddings ...)
 ```
 
 The same settings are available as `PRIOMPT_EMBED_URL` and `PRIOMPT_EMBED_MODEL`. For a hosted API, put the key in `PRIOMPT_EMBED_KEY`; Priompt sends it as a bearer token. If the server can't reach the endpoint, it still publishes, but change events carry an empty verdict. See [Troubleshoot common problems](./troubleshooting.md).

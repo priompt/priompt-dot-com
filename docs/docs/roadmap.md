@@ -25,10 +25,9 @@ Not published yet:
 Each gap links to the page it affects. Open bugs, each linked to its GitHub issue, are listed in [Known issues](/reference/known-issues).
 
 - **Merges take the source branch's content.** Three-way automatic merges aren't implemented. See [Branch, pin, and roll back a prompt](/guides/branch-pin-rollback).
-- **The web UI's branch, compare, search, and settings pages use sample data.** The server has no `ListBranches` RPC yet. See [Web UI overview](/guides/web-ui).
+- **The web UI can't list every branch or commit of a prompt.** The server has no `ListBranches` or full commit listing RPC yet ([priompt#45](https://github.com/priompt/priompt/issues/45)), and the settings pages are placeholders. See [Web UI overview](/guides/web-ui).
 - **Rotating the encryption key isn't automated.** See [Storage and backups](/operations/storage).
 - **Authorization works per org.** A token covers every prompt under its org prefix, and per-prompt rules aren't modeled. See [Orgs, tokens, and access](/concepts/access-control).
-- **The Docker image's default command keeps the database outside `/data`.** Pass `serve -db /data/priompt.db` so the database lands on the volume. See [Install with Docker](./installation/docker.mdx).
 
 ## Proposed: the eval gate
 

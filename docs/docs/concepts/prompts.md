@@ -14,9 +14,9 @@ Every prompt has four fields:
 | Field | Example | Meaning |
 | --- | --- | --- |
 | `uri` | `priompt://acme/onboarding/welcome` | The prompt's unique address. |
-| `template` | `Hi {name}, welcome to {org}!` | The text, with placeholders. |
+| `template` | `Hi {name}, welcome to {org}!\n` | The text, with placeholders. |
 | `slots` | `["name", "org"]` | The declared slots, in order. |
-| `version_hash` | `e345dcf74d01…` | A fingerprint of the content. The server computes it. |
+| `version_hash` | `22e5cc10ac0f…` | A fingerprint of the content. The server computes it. |
 
 A **slot** is a named blank like `{name}` that your app fills in. Agents fetch the template and fill in the slots themselves. Priompt doesn't render templates or call a model.
 

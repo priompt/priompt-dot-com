@@ -49,13 +49,13 @@ Moving from SQLite to PostgreSQL is `backup` followed by `restore`, and static t
 - [ ] **Tokens are scoped and read-only by default.** Give `rw` only to the services and people that publish, and an org to every token that serves one team.
 - [ ] **TLS is on.** Pass both `-tls-cert` and `-tls-key`. Add `-client-ca` for service-to-service mTLS.
 - [ ] **The demo prompt is off.** Set `-seed=false` or `PRIOMPT_SEED=false`, so the server doesn't create `priompt://acme/onboarding/welcome`.
-- [ ] **The broker has a token.** If port `4222` is reachable from other hosts, set `PRIOMPT_NATS_TOKEN`. Never expose the NATS cluster port publicly.
+- [ ] **The broker has a token.** If port `4222` is reachable from other hosts, set `PRIOMPT_NATS_TOKEN`, and give each agent its own API token for the broker, not the broker token. Never expose the NATS cluster port publicly.
 - [ ] **Metrics are internal.** `-metrics-addr` defaults to `:2112` on every interface. Bind it to an internal address such as `127.0.0.1:2112`.
 - [ ] **Encryption at rest is on, and the key is backed up.** Set `PRIOMPT_ENCRYPTION_KEY` and store the key apart from database backups. See [Storage and backups](./storage.md).
 - [ ] **Backups run.** Schedule `priompt backup` and test a restore.
 - [ ] **Rate limits are set** if several teams share the server: `-rate-limit` and `-rate-burst`. See [Monitoring and rate limits](./monitoring.md).
 - [ ] **Secrets stay out of the command line.** Pass the broker token and the encryption key as environment variables. Make the tokens file and any env file readable only by the service account.
-- [ ] **The database is on a volume.** In the Docker image, pass `-db /data/priompt.db` and mount a volume at `/data`. Without `-db`, the database is written to the container's own filesystem and is lost with the container.
+- [ ] **The database is on a volume.** In Docker, mount a volume at `/data`, where the image keeps `priompt.db`. When you upgrade from v0.7.2 or earlier, fix the volume's owner first. See [Install with Docker](../installation/docker.mdx).
 
 ## Start the server with production settings
 
@@ -81,7 +81,7 @@ priompt serve \
 
 ```text title="Output"
 2026/10/18 10:20:22 metrics on 127.0.0.1:2112/metrics
-2026/10/18 10:20:22 priompt v0.7.2 (unknown) serving on :8443 (tls=true mtls=false auth=1-token cache=redis embed=BAAI/bge-small-en-v1.5@http://tei/v1/embeddings nats=0.0.0.0:4222 metrics=127.0.0.1:2112 ratelimit=50/s)
+2026/10/18 10:20:22 priompt v0.7.3 (unknown) serving on :8443 (tls=true mtls=false auth=1-token cache=redis embed=BAAI/bge-small-en-v1.5@http://tei/v1/embeddings nats=0.0.0.0:4222 metrics=127.0.0.1:2112 ratelimit=50/s)
 ```
 
 Replace the placeholders:
@@ -123,7 +123,7 @@ To check the running server:
    ```text title="Output"
    # HELP priompt_build_info Always 1; labels identify the running build.
    # TYPE priompt_build_info gauge
-   priompt_build_info{commit="unknown",goversion="go1.26.4",version="v0.7.2"} 1
+   priompt_build_info{commit="unknown",goversion="go1.26.4",version="v0.7.3"} 1
    ```
 
 ## Next steps

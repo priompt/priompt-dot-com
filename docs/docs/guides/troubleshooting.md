@@ -43,21 +43,40 @@ The embedded NATS broker carries change events for every org. The server refuses
 
 To fix it, do one of the following:
 
-- Set a token: `-nats-token <nats-token>` or `PRIOMPT_NATS_TOKEN=<nats-token>`. Subscribers then connect with `nats://<nats-token>@host:4222`.
+- Set a token: `-nats-token <nats-token>` or `PRIOMPT_NATS_TOKEN=<nats-token>`. With API authentication on, subscribers then connect with their own API token: `nats://<api-token>@host:4222`. See [Secure a server](../operations/security.md#require-a-token-on-the-broker).
 - Keep NATS on loopback: remove `-nats-addr`, or set `-nats-addr 127.0.0.1:4222`.
 - Turn off pub/sub: `-nats-addr ""`.
 
 In Docker, NATS must listen on `0.0.0.0` to be reachable through a published port, so set the token.
 
-## Fix "unable to open database file" in Docker
-
 ```text title="Output"
-unable to open database file (14)
+encryption key missing or wrong: the database holds encrypted prompts but PRIOMPT_ENCRYPTION_KEY is not set
+encryption key missing or wrong: PRIOMPT_ENCRYPTION_KEY does not decrypt the stored prompts (it must be the key they were written with)
 ```
 
-The server was started with `-db /data/priompt.db`, but `/data` doesn't exist in the image unless you mount a volume there.
+The database holds prompts encrypted at rest, and the server can't read them with the key it has. Set `PRIOMPT_ENCRYPTION_KEY` to the key the prompts were written with. See [Storage and backups](../operations/storage.md#turn-on-encryption-at-rest).
 
-To fix it, mount a volume at `/data`, for example `-v priompt-data:/data`, and keep `-db /data/priompt.db`. See [Install with Docker](../installation/docker.mdx).
+```text title="Output"
+-tls-cert and -tls-key must be set together
+```
+
+Pass both flags, or neither. See [Secure a server](../operations/security.md).
+
+## Fix "publish failed" after upgrading the Docker image
+
+```text title="Output"
+rpc error: code = Internal desc = publish failed
+```
+
+The server log shows `publish: attempt to write a readonly database`. From v0.7.3 the image runs as uid 10001 instead of root, and the volume still holds files that an older image wrote as root.
+
+To fix it, change the owner once, then restart the container:
+
+```sh
+docker run --rm -v priompt-data:/data alpine chown -R 10001:10001 /data
+```
+
+For a bind mount, pass the host directory instead of `priompt-data`. See [Install with Docker](../installation/docker.mdx).
 
 ## Fix "Unavailable" when a client connects
 
@@ -86,7 +105,7 @@ To fix it:
 1. Restore the cache backend. Check the `-redis-url` the server uses.
 2. Retry the same publish. The retry stores nothing new, clears the cache, and succeeds.
 
-The retry doesn't send a change event. Subscribers pick up the change on their next fetch.
+The server sends the change event even when the cache clear fails, so the retry prints `unchanged` and sends no second event.
 
 ## Fix "not found" for a commit hash
 
@@ -101,15 +120,19 @@ To fix it, copy the full `hash` from `History`, or look it up by prefix. See [Br
 
 ## Fix a subscriber that gets no events
 
-The broker rejects a subscriber without the right token. The symptom depends on the client:
+The broker rejects a subscriber without the right token:
 
-- **Python**: the subscribe thread logs `nats.errors.Error: nats: 'Authorization Violation'`, and the agent keeps running without events.
-- **Node**: `subscribe()` rejects with a `TIMEOUT` error after about 20 seconds.
-- **`priompt watch`**: exits with `nats: Authorization Violation`.
+```text title="Output"
+ConnectionError: subscribe: cannot connect to NATS at 127.0.0.1:4222: nats: 'Authorization Violation'
+NATS broker rejected the connection: Authorization Violation (check natsToken or the token in natsUrl)
+nats: Authorization Violation
+```
 
-To fix it, put the server's NATS token in the URL: `nats://<nats-token>@host:4222`. The NATS port (default `4222`) must also be reachable from the agent.
+The first line is from Python, the second from Node, and the third from `priompt watch`.
 
-If events arrive for publishes but not for a merge, that's expected in v0.7.2: `MergeBranch` doesn't send an event. See [Hot-reload prompts safely](./hot-reload.mdx).
+To fix it, put the agent's API token in the URL: `nats://<api-token>@host:4222`. The NATS port (default `4222`) must also be reachable from the agent.
+
+A subscription to a prompt outside the token's org is refused with `Permissions Violation for Subscription to "priompt.<org>...."`. Use a token for that org, or an admin token.
 
 ## Fix an empty verdict
 
@@ -125,28 +148,13 @@ To fix it, check `-embed-url` and `-embed-model`, and that the endpoint answers.
 
 ## Fix templates written by Windows PowerShell 5.1
 
-In Windows PowerShell 5.1, `>` writes UTF-16, and Priompt rejects the file:
+In Windows PowerShell 5.1, `>` and `Out-File` write UTF-16, and `priompt` rejects the file:
 
 ```text title="Output"
-validation failed: template has an unclosed or malformed placeholder near "{\x00n\x00a\x00m\x00e\x00}\x00,\x00 ..."
+welcome.txt: file is UTF-16; save as UTF-8
 ```
 
-`Out-File -Encoding utf8` has the opposite problem: it adds a byte-order mark, and the mark is stored silently as the first character of the template.
-
-To fix it, use one of these forms:
-
-- Pipe the text: `"Hi {name}!" | priompt publish -uri priompt://acme/onboarding/welcome -file - -slot name`.
-- For text without accented characters, write the file with `Set-Content`: `Set-Content welcome.txt "Hi {name}!"`.
-
-## Fix "open : no such file or directory" from promptctl
-
-```text title="Output"
-open : no such file or directory
-```
-
-`promptctl push` and `promptctl publish` with `-tls` need `-ca-cert` in v0.7.0, even for a server with a public certificate.
-
-To fix it, pass the CA that signed the server's certificate. For a public certificate, pass the system bundle, such as `-ca-cert /etc/ssl/certs/ca-certificates.crt` on Debian and Ubuntu.
+To fix it, pipe the text (`"Hi {name}!" | priompt publish -uri priompt://acme/onboarding/welcome -file - -slot name`), or write the file with `Set-Content`. `priompt` strips a UTF-8 byte-order mark and converts CRLF line endings to LF, so either form stores the same template as on Linux. Before v0.7.3, a byte-order mark was stored as part of the template.
 
 ## Stop the firewall prompt on macOS
 

@@ -39,7 +39,7 @@ To build and install the `priompt` binary:
    priompt version
    ```
 
-   The command prints the version, such as `priompt v0.7.2 (commit unknown, go1.25.14)`.
+   The command prints the version, such as `priompt v0.7.3 (commit unknown, go1.25.14)`.
 
 A binary you build yourself isn't quarantined by Gatekeeper. If you copy one from another Mac and macOS blocks it, clear the flag with `xattr -d com.apple.quarantine /usr/local/bin/priompt`.
 
@@ -121,7 +121,7 @@ To run the server as a launchd agent:
 
 To stop the agent, run `launchctl bootout gui/$(id -u)/com.priompt.server`. To start the server at boot before anyone logs in, put the property list in `/Library/LaunchDaemons/`, add a `UserName` key, and load it with `sudo launchctl bootstrap system`.
 
-NATS stays on loopback in this setup, so only local processes can subscribe to change events. For agents on other hosts, add `-nats-addr 0.0.0.0:4222` and a `PRIOMPT_NATS_TOKEN` variable set to the output of `priompt gen-token`. The server refuses an off-loopback NATS address without a token.
+NATS stays on loopback in this setup, so only local processes can subscribe to change events. For agents on other hosts, add `-nats-addr 0.0.0.0:4222` and a `PRIOMPT_NATS_TOKEN` variable set to the output of `priompt gen-token`. The server refuses an off-loopback NATS address without a token. Agents then subscribe with their own API token: `nats://<token>@<your-host>:4222`.
 
 :::tip Firewall prompt
 The first time `priompt` listens on `:8443`, macOS may ask whether to accept incoming connections. If only local apps use the server, use `-addr 127.0.0.1:8443` and the prompt doesn't appear.
@@ -140,11 +140,11 @@ To publish a first prompt and read it back:
 2. Publish a prompt:
 
    ```sh
-   echo 'Hi {name}, welcome to {org}!' | priompt publish -uri priompt://acme/onboarding/welcome -file - -slot name -slot org
+   echo 'Welcome to {org}, {name}! Ask me anything to get started.' | priompt publish -uri priompt://acme/onboarding/welcome -file - -slot name -slot org
    ```
 
    ```text title="Output"
-   published priompt://acme/onboarding/welcome (22e5cc10ac0f) — subscribers notified
+   published priompt://acme/onboarding/welcome (9ae06087ed69) — subscribers notified
    ```
 
 <ConnectClient />

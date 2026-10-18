@@ -28,7 +28,7 @@ To install the binaries:
    go install github.com/priompt/auth/cmd/priompt-auth@latest
    ```
 
-   Go puts the binaries in `$(go env GOPATH)/bin`. To pin a release, replace `@latest` with a version tag such as `@v0.7.2`.
+   Go puts the binaries in `$(go env GOPATH)/bin`. To pin a release, replace `@latest` with a version tag such as `@v0.7.3`.
 
 2. Check the server's version:
 
@@ -37,7 +37,7 @@ To install the binaries:
    ```
 
    ```text title="Output"
-   priompt v0.7.2 (commit unknown, go1.26.4)
+   priompt v0.7.3 (commit unknown, go1.26.4)
    ```
 
 3. Create a database to check that the storage engine works:

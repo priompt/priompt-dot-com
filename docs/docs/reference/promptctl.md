@@ -29,11 +29,11 @@ Slots come from the template: every `{name}` is a slot. `promptctl` has no `-slo
 
 ## Exit codes
 
-- **`0`**: Success, including `diff` with a `structural` verdict.
-- **`1`**: The command failed. The reason is on stderr, for example `2 invalid prompt(s); nothing committed`.
-- **`2`**: Unknown command, or a flag that isn't defined.
+- **`0`**: Success. `diff` without `-fail-on` exits `0` whatever the verdicts are.
+- **`1`**: The command failed, or `diff -fail-on` matched a verdict. The reason is on stderr, for example `2 invalid prompt(s); nothing committed`.
+- **`2`**: Unknown command, a flag that isn't defined, or an unknown verdict name in `-fail-on`.
 
-`diff` reports verdicts but doesn't fail on them. To block a structural change in CI, check the output for `=> structural`. See [Gate prompt changes in CI](../guides/ci.mdx).
+To block a structural change in CI, run `promptctl diff -fail-on structural`. See [Gate prompt changes in CI](../guides/ci.mdx).
 
 ## Environment
 
@@ -82,10 +82,16 @@ For every validation message, see [Errors](./errors.md#invalidargument).
 Runs the semantic diff for every `*.prompt` file that differs between a git revision and the working tree, including added and deleted files.
 
 ```text
-promptctl diff [<revision>]
+promptctl diff [-fail-on <verdicts>] [<revision>]
 ```
 
 `<revision>` is any git revision: a branch, a tag, a commit hash, or `HEAD~1`. The default is `HEAD`.
+
+| Flag | Env var | Default | Description |
+| --- | --- | --- | --- |
+| `-fail-on` | | | Comma-separated verdicts that make `diff` exit `1`: `new`, `structural`, `tweak` (`localized tweak`), `minor` (`minor edit`). Empty never fails. |
+
+A prompt that doesn't exist in `<revision>` prints `new prompt (not in <revision>)` and the verdict `new`.
 
 **Example**
 
@@ -104,6 +110,27 @@ change @ new lines 2-2 (old 2-2): replace
 ```
 
 With no changes, it prints `no prompt changes vs HEAD`. An unknown revision prints `unknown ref "<revision>": reference not found` and exits `1`.
+
+With `-fail-on`, a match prints the matching prompts on stderr after the diff and exits `1`:
+
+```sh
+promptctl diff -fail-on structural main
+```
+
+```text title="Output"
+## acme/support/agent.prompt
+change @ new lines 4-4 (old 4-4): replace
+  Signal 2 (point delta): 0.908
+  Signal 3 up:   ±2=0.369 ±4=0.254 (boundary)
+  Signal 3 down: ±2=0.494 (boundary)
+  => structural
+
+## acme/support/greeting.prompt
+new prompt (not in main)
+  => new
+
+2026/10/19 01:03:58 diff: 1 prompt(s) match -fail-on structural: acme/support/agent.prompt (structural)
+```
 
 ## log
 
@@ -126,7 +153,7 @@ d9643f65 add support agent
 
 ## promote
 
-Copies one prompt from the `<from>` branch onto the `<to>` branch, validates it, checks out `<to>`, and commits it there with the message `promote <file>: <from> -> <to>`. Both branches must exist, and the working tree should be clean.
+Copies one prompt from the `<from>` branch onto the `<to>` branch, validates it, and commits it on `<to>` with the message `promote <file>: <from> -> <to>`. Both branches must exist, and the working tree should be clean.
 
 ```text
 promptctl promote <file.prompt> <from> <to>
@@ -142,20 +169,20 @@ promptctl promote acme/support/agent.prompt dev prod
 promoted acme/support/agent.prompt onto prod (18bd98a235c4)
 ```
 
-`promote` leaves `<to>` checked out. If the prompt already matches, it prints `already up to date: acme/support/agent.prompt on prod matches dev` and exits `0`.
+`promote` returns to the branch you started on. If the prompt already matches, it prints `already up to date: acme/support/agent.prompt on prod matches dev` and exits `0`.
 
 ## push
 
 Validates every prompt, pushes all local branches to `origin`, and then, with `-server`, publishes every `*.prompt` file in the working tree to that server.
 
 ```text
-promptctl push [-server <host:port>] [-tls -ca-cert <file>]
+promptctl push [-server <host:port>] [-tls [-ca-cert <file>]]
 ```
 
 | Flag | Env var | Default | Description |
 | --- | --- | --- | --- |
 | `-server` | | | Server to publish to after the push. Without it, `push` only pushes. |
-| `-tls` | | `false` | Connect to `-server` over TLS. Requires `-ca-cert`. |
+| `-tls` | | `false` | Connect to `-server` over TLS. Without `-ca-cert`, it trusts the system CA roots. |
 | `-ca-cert` | | | CA certificate that signed the server's certificate. |
 
 **Example**
@@ -190,13 +217,13 @@ Without a remote named `origin`, `push` and `pull` print `remote not found` and 
 Publishes prompts to a server without touching git. With no paths, it publishes every `*.prompt` file in the working tree.
 
 ```text
-promptctl publish -server <host:port> [-tls -ca-cert <file>] [<file.prompt>...]
+promptctl publish -server <host:port> [-tls [-ca-cert <file>]] [<file.prompt>...]
 ```
 
 | Flag | Env var | Default | Description |
 | --- | --- | --- | --- |
 | `-server` | | | Server address. Required. |
-| `-tls` | | `false` | Connect over TLS. Requires `-ca-cert`. |
+| `-tls` | | `false` | Connect over TLS. Without `-ca-cert`, it trusts the system CA roots. |
 | `-ca-cert` | | | CA certificate that signed the server's certificate. |
 
 **Example**

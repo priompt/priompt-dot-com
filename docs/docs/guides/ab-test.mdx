@@ -141,7 +141,7 @@ To ship the candidate to everyone:
 
 3. Set `SHARE` to `0` to end the test.
 
-In v0.7.2, a merge doesn't send a change event. Agents that hold the old version in memory pick up the merge on their next fetch. If the shipped version misbehaves, [roll it back](./branch-pin-rollback.mdx) with `SetBranch`.
+The merge sends a change event with its verdict, so subscribed agents pick up the shipped version right away. If it misbehaves, [roll it back](./branch-pin-rollback.mdx) with `SetBranch`.
 
 To end the test without shipping, set `SHARE` to `0`. Cohort B goes back to `main`. The branch stays on the server, because Priompt has no call to delete a branch.
 

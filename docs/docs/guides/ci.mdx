@@ -33,7 +33,7 @@ Before you begin, make sure you have:
 
 `promptctl` has no validate-only command. `promptctl commit` validates, but on a clean CI checkout it fails with `cannot create empty commit: clean working tree`, whatever the prompts contain. The check workflow therefore starts a throwaway `priompt` server inside the job and publishes every prompt to it. `promptctl publish` validates each file and exits with status 1 on the first invalid one.
 
-`promptctl diff` always exits with status 0, so the workflow searches its output for `=> structural`. A prompt that doesn't exist on `main` yet also reads as `structural`, so adding a prompt needs the label too.
+`promptctl diff -fail-on structural` prints the diff and exits with status 1 when any prompt reads as `structural`. A prompt that doesn't exist on the base branch yet reads as `new`, so adding a prompt passes unless you also list `new`.
 
 ## 1. Install the tools
 
@@ -45,8 +45,8 @@ Every job installs the binaries with `go install`. `actions/setup-go` puts them 
           go-version: "1.25"
       - name: Install promptctl and priompt
         run: |
-          go install github.com/priompt/cli/cmd/promptctl@v0.7.0
-          go install github.com/priompt/priompt/cmd/priompt@v0.7.2
+          go install github.com/priompt/cli/cmd/promptctl@v0.7.1
+          go install github.com/priompt/priompt/cmd/priompt@v0.7.3
 ```
 
 ## 2. Validate every prompt
@@ -77,11 +77,11 @@ To gate on the verdict, diff the pull request against its base branch and fail i
         env:
           ALLOW: ${{ contains(github.event.pull_request.labels.*.name, 'structural-ok') }}
         run: |
-          promptctl diff "origin/$GITHUB_BASE_REF" | tee "$RUNNER_TEMP/diff.txt"
-          if grep -q "=> structural" "$RUNNER_TEMP/diff.txt" && [ "$ALLOW" != "true" ]; then
+          if [ "$ALLOW" = "true" ]; then FAIL_ON=""; else FAIL_ON=structural; fi
+          promptctl diff -fail-on "$FAIL_ON" "origin/$GITHUB_BASE_REF" || {
             echo "::error::Structural prompt change. Review it, then add the structural-ok label."
             exit 1
-          fi
+          }
 ```
 
 For a change that flips a refund rule, the step prints the diff and fails:
@@ -94,8 +94,11 @@ change @ new lines 4-4 (old 4-4): replace
   Signal 3 down: ±2=0.494 (boundary)
   => structural
 
+2026/10/19 01:03:58 diff: 1 prompt(s) match -fail-on structural: acme/support/agent.prompt (structural)
 ::error::Structural prompt change. Review it, then add the structural-ok label.
 ```
+
+With the label, `-fail-on` is empty, so the step prints the diff and passes. `promptctl diff` exits with status 2 for a verdict name it doesn't know, which also fails the step.
 
 The diff needs the base branch's history, so the checkout uses `fetch-depth: 0`. Without an embedding model, the verdict compares words. To compare meaning, set `PRIOMPT_EMBED_URL`, `PRIOMPT_EMBED_MODEL`, and `PRIOMPT_EMBED_KEY` on this step. See [Use a real embedding model](./embedding-model.md).
 
@@ -121,8 +124,8 @@ jobs:
           go-version: "1.25"
       - name: Install promptctl and priompt
         run: |
-          go install github.com/priompt/cli/cmd/promptctl@v0.7.0
-          go install github.com/priompt/priompt/cmd/priompt@v0.7.2
+          go install github.com/priompt/cli/cmd/promptctl@v0.7.1
+          go install github.com/priompt/priompt/cmd/priompt@v0.7.3
       - name: Validate every prompt
         run: |
           priompt serve -addr 127.0.0.1:8443 -db "$RUNNER_TEMP/ci.db" -nats-addr "" -metrics-addr "" &
@@ -132,11 +135,11 @@ jobs:
         env:
           ALLOW: ${{ contains(github.event.pull_request.labels.*.name, 'structural-ok') }}
         run: |
-          promptctl diff "origin/$GITHUB_BASE_REF" | tee "$RUNNER_TEMP/diff.txt"
-          if grep -q "=> structural" "$RUNNER_TEMP/diff.txt" && [ "$ALLOW" != "true" ]; then
+          if [ "$ALLOW" = "true" ]; then FAIL_ON=""; else FAIL_ON=structural; fi
+          promptctl diff -fail-on "$FAIL_ON" "origin/$GITHUB_BASE_REF" || {
             echo "::error::Structural prompt change. Review it, then add the structural-ok label."
             exit 1
-          fi
+          }
 ```
 
 </details>
@@ -161,14 +164,14 @@ jobs:
         with:
           go-version: "1.25"
       - name: Install promptctl
-        run: go install github.com/priompt/cli/cmd/promptctl@v0.7.0
+        run: go install github.com/priompt/cli/cmd/promptctl@v0.7.1
       - name: Publish to the server
         env:
           PRIOMPT_TOKEN: ${{ secrets.PRIOMPT_TOKEN }}
-        run: promptctl publish -server "${{ vars.PRIOMPT_SERVER }}" -tls -ca-cert /etc/ssl/certs/ca-certificates.crt
+        run: promptctl publish -server "${{ vars.PRIOMPT_SERVER }}" -tls
 ```
 
-In `promptctl` v0.7.0, `-tls` requires `-ca-cert`. The path above is the system CA bundle on Ubuntu runners, which works for a server with a public certificate. For a private CA, commit the CA certificate to the repo and pass its path instead.
+`-tls` without `-ca-cert` trusts the system CA roots, which works for a server with a public certificate. For a private CA, commit the CA certificate to the repo and add `-ca-cert <path>`.
 
 `promptctl publish` publishes files one at a time and stops at the first error. The check workflow catches invalid prompts before they reach `main`, so a publish run doesn't stop halfway.
 

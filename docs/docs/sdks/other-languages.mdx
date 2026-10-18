@@ -35,12 +35,12 @@ grpcurl -plaintext -H "authorization: Bearer <token>" \
 ```text title="Output"
 {
   "uri": "priompt://acme/onboarding/welcome",
-  "template": "Hi {name}, welcome to {org}!",
+  "template": "Hi {name}, welcome to {org}!\n",
   "slots": [
     "name",
     "org"
   ],
-  "versionHash": "e345dcf74d01b792c098e087311615829e1529363097a89eba31d522d0fcdbea"
+  "versionHash": "22e5cc10ac0f3d70fd97c6b554a36abcb3173731412212dc222106e9cbcac402"
 }
 ```
 
@@ -114,12 +114,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(p.GetTemplate(), p.GetVersionHash()[:12])
+	fmt.Printf("%s%s\n", p.GetTemplate(), p.GetVersionHash()[:12])
 }
 ```
 
 ```text title="Output"
-Hi {name}, welcome to {org}! e345dcf74d01
+Hi {name}, welcome to {org}!
+22e5cc10ac0f
 ```
 
 ## Follow the connection rules
@@ -135,9 +136,9 @@ The [gRPC API reference](../reference/grpc-api.md) documents every RPC and messa
 
 ## Subscribe without an SDK
 
-The server publishes a change event on its NATS broker each time the served version of a prompt changes. To receive events from any language, connect a NATS client to `nats://127.0.0.1:4222`, or `nats://<nats-token>@host:4222` when the broker requires a token. Then subscribe to the prompt's subject.
+The server publishes a change event on its NATS broker each time the served version of a prompt changes. To receive events from any language, connect a NATS client to `nats://127.0.0.1:4222`, or `nats://<api-token>@host:4222` with your API token when the broker requires one. Then subscribe to the prompt's subject. An org-scoped token can subscribe only inside its org.
 
-The subject is the address with `priompt://` replaced by `priompt.` and each `/` replaced by `.`. For example, `priompt://acme/support/agent` publishes on `priompt.acme.support.agent`, and `priompt.acme.>` matches every prompt in the `acme` org.
+The subject is `priompt.` followed by the address's segments joined by `.`. Inside a segment, every byte other than a letter, a digit, `_`, or `-` is percent-encoded as `%` and two uppercase hex digits. For example, `priompt://acme/support/agent` publishes on `priompt.acme.support.agent`, `priompt://acme.corp/x/a.b` on `priompt.acme%2Ecorp.x.a%2Eb`, and `priompt.acme.>` matches every prompt in the `acme` org. Servers before v0.7.3 didn't encode segments.
 
 The message body is JSON:
 

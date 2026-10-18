@@ -11,7 +11,7 @@ The **semantic diff** measures how far an edit's change in meaning spreads throu
 
 For each changed region, Priompt computes three signals:
 
-1. **Where**: the changed lines, found with a line-level diff. Lines that differ only in trailing spaces or tabs count as unchanged.
+1. **Where**: the changed lines, found with a line-level diff. Lines that differ only in trailing spaces or tabs count as unchanged, and so does a missing or extra newline at the end of the template. An edit to the last line is reported as one `replace`.
 2. **How big at the point**: the **point delta**, `1 - cosine(old, new)` between embeddings of the old and new lines. It runs from 0 (same meaning) to 1. A pure insertion or deletion scores 1, since there's nothing on the other side to compare.
 3. **How far it spreads**: the same measurement over a window that grows outward by 2 lines at a time (±2, ±4, ±6, and so on), upward and downward separately. Growth stops when the delta changes by less than 0.02 between steps (the ripple flattened) or when the window reaches the start or end of the prompt (the boundary).
 

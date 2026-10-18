@@ -60,13 +60,13 @@ Pinned reads skip the server cache and are validated like any other read.
 ## Guarantees
 
 - **Concurrent writes don't get lost**: advancing a branch is a compare-and-swap against the tip the writer read. If another write moved the branch first, the loser gets `ABORTED` and should re-read and retry.
-- **Republishing the served content is a no-op**: publishing the content `main` already serves records no commit and sends no notification.
+- **Republishing the same content is a no-op**: publishing the content `main` already serves, or the content at another branch's tip, records no commit and sends no notification. The CLI prints `unchanged`.
 - **A write that can't clear the cache fails**: publish, merge into `main`, and rollback return `UNAVAILABLE` if the cache can't be cleared. The change is already stored. Retry it so every node serves the new version.
 - **Branch work stays invisible**: a publish to another branch doesn't change the served HEAD, clear the cache, or notify anyone.
-- **Only gRPC writes create commits**: `priompt put` and `priompt import` write the served content directly, with no commit and no history. Use `priompt publish` or an SDK for changes you want versioned.
+- **Every write is validated and committed**: `priompt put` and `priompt import` validate each prompt and commit it to `main`, with the author `priompt` and the message `put` or `import`. Identical content is a no-op. They write to the database directly, so they don't send change events or clear a running server's cache.
 
 :::note
-In v0.7.2, merging into `main` changes the served HEAD but doesn't notify subscribers. Agents pick up the merged version on their next read after their cache expires. Also, republishing identical content to a branch other than `main` records a new commit each time.
+In v0.7.2 and earlier, a merge into `main` didn't notify subscribers, republishing identical content to another branch recorded a new commit each time, and `put` and `import` wrote no commit and skipped validation.
 :::
 
 ## Worked example

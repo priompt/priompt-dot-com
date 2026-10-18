@@ -61,22 +61,24 @@ To list a prompt's commits:
 
 1. On the prompt view, select **History**.
 
-   ![Commits view for /onboarding/welcome.prompt listing four commits, newest "Offer project import as a first step" (861d338), oldest "seed: demo prompt".](/img/ui/07-history.png)
+   ![Commits view for /onboarding/welcome.prompt listing four commits, newest "Offer project import as a first step" (06100c3), oldest "seed: demo prompt".](/img/ui/07-history.png)
 
    *Every commit of the prompt on `main`, newest first.*
 
 Each row shows the commit message, the author, the age, and the short hash. Commits published from the CLI show **(no message)**. Select a commit to open its diff and verdict, as described in [Review a commit and its verdict](./review-commit.mdx).
 
-Use the prompt's **History** button, not the namespace's **History** tab. The tab has no prompt selected, so it shows an empty list.
+The namespace's **History** tab lists the namespace's prompts. Pick one to open its history.
 
 ## 4. Search a namespace
 
-Search matches a word in prompt paths and template text. It has no menu entry yet, so you open it by URL.
+Search matches a word in prompt paths and template text.
 
 To search a namespace:
 
-1. Go to `/<org>/search`, for example `/acme/search`.
-2. Type a word, for example `ticket`, and press Enter.
+1. Open the namespace, for example **acme**.
+2. Type a word in the navbar search box, for example `ticket`, and press Enter.
+
+   The search page opens at `/<org>/search?q=<text>`.
 
    ![Search acme for "ticket": 2 results, support/escalate and support/triage, each with its matching first line.](/img/ui/15-search.png)
 

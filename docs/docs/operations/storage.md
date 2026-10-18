@@ -83,7 +83,7 @@ To back up every night with cron:
 
 ## Copy prompts between servers
 
-`priompt export` and `priompt import` carry only the version each prompt serves, without commits or branches. Use them to seed a staging server, not as a backup.
+`priompt export` and `priompt import` carry only the version each prompt serves, without commits or branches. Use them to seed a staging server, not as a backup. `import` validates every prompt before it writes any, and commits each one to `main` with the message `import`. A prompt that already serves the same content is counted as unchanged.
 
 ```sh
 priompt export -db priompt.db -out prompts.jsonl
@@ -92,10 +92,10 @@ priompt import -db staging.db -in prompts.jsonl
 
 ```text title="Output"
 exported 4 prompts (served content only — commits and branches are not included; use `priompt backup` for those)
-imported 4 prompts (served content only — history was not part of this file; use `priompt restore` for a full backup)
+imported 4 prompts, 0 unchanged (served content only — history was not part of this file; use `priompt restore` for a full backup)
 ```
 
-The imported server serves every prompt, but a history request for any of them returns `NotFound: branch not found`.
+Each imported prompt starts with one commit on `main`, so its history holds that commit only.
 
 ## Migrate from SQLite to PostgreSQL
 
@@ -150,7 +150,7 @@ To turn on encryption:
 New writes are encrypted. In the database, an encrypted value starts with `enc1:`:
 
 ```text title="Output"
-priompt://acme/onboarding/welcome enc1:PWDAnyAQcALxsZkrKFyHrXIUFdUqnvWvMZh e345dcf74d01
+priompt://acme/onboarding/welcome enc1:PWDAnyAQcALxsZkrKFyHrXIUFdUqnvWvMZh 22e5cc10ac0f
 ```
 
 What to know about the key:

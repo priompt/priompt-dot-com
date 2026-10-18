@@ -91,7 +91,7 @@ To add scoped tokens:
    <acme-contractor-token> acme 2026-12-31 rw
    ```
 
-   Replace each `<...-token>` with a value from `priompt gen-token`. Put comments on their own lines. The server reads a word after the token as a field, so `<token> # read-only` scopes the token to an org named `read-only`.
+   Replace each `<...-token>` with a value from `priompt gen-token`. From v0.7.3, `#` starts a comment anywhere after the token. In v0.7.2 and earlier, the server reads a word after the token as a field, so `<token> # read-only` scopes the token to an org named `read-only`; on those versions, put comments on their own lines.
 
 3. Restart the server so it reads the file again.
 
@@ -165,7 +165,7 @@ To serve over TLS:
    ```
 
    ```text title="Output"
-   2026/10/18 06:10:50 priompt v0.7.2 (unknown) serving on :8443 (tls=true mtls=true auth=1-token cache=mem embed=lexical(offline) nats=127.0.0.1:4222 metrics=:2112 ratelimit=0/s)
+   2026/10/18 06:10:50 priompt v0.7.3 (unknown) serving on :8443 (tls=true mtls=true auth=1-token cache=mem embed=lexical(offline) nats=127.0.0.1:4222 metrics=:2112 ratelimit=0/s)
    ```
 
    Pass both `-tls-cert` and `-tls-key`. With only `-tls-cert`, the server serves plaintext, even though its startup line says `tls=true`. `-client-ca` without them stops the server with `-client-ca requires -tls-cert and -tls-key`.
@@ -177,7 +177,7 @@ To serve over TLS:
    ```
 
    ```text title="Output"
-   priompt://acme/onboarding/welcome	e345dcf74d01
+   priompt://acme/onboarding/welcome	22e5cc10ac0f
    ```
 
 A plaintext client gets `rpc error: code = Unavailable desc = connection error: desc = "error reading server preface: EOF"`. Under mTLS, a client without a certificate also gets `Unavailable`. The SDKs take the same three files: see [Python SDK](../sdks/python.mdx) and [JavaScript SDK](../sdks/javascript.mdx).
@@ -201,15 +201,28 @@ To expose the broker to other hosts:
    -nats-addr 0.0.0.0:4222 is not loopback: set -nats-token (or PRIOMPT_NATS_TOKEN) so subscribers must authenticate, or bind NATS to 127.0.0.1
    ```
 
-2. Give subscribers the token inside the broker URL:
+2. Give each subscriber its own API token inside the broker URL, the same token it uses for gRPC:
 
    ```sh
-   priompt watch -uri priompt://acme/onboarding/welcome -nats-url nats://<nats-token>@prompts.example.com:4222
+   priompt watch -uri priompt://acme/onboarding/welcome -nats-url nats://<api-token>@prompts.example.com:4222
    ```
 
-   A subscriber without the token fails with `nats: Authorization Violation`.
+   ```text title="Output"
+   2026/10/19 00:55:22 watching priompt://acme/onboarding/welcome on nats://***@prompts.example.com:4222
+   ```
 
-The broker token is separate from the gRPC tokens, and there's one for the whole broker. Anyone who holds it can watch every org's events and publish events of their own, so give it only to services you trust. `priompt watch` prints the broker URL with the token when it starts, so keep its logs private.
+   `priompt watch` hides the credential when it logs the URL.
+
+The broker accepts two kinds of credential:
+
+- **An API token**: a tokens-file token, `PRIOMPT_TOKEN`, or a `priompt-auth` JWT. It can only subscribe, never publish. A token scoped to an org can subscribe only to that org's prompts, and an admin token to every org. The server accepts API tokens on the broker when both `-nats-token` and API authentication are set.
+- **The broker token** (`-nats-token`): the server's own credential, with the right to subscribe to every org and to publish events. Keep it on the server and give it to no agent.
+
+A wrong token fails with `nats: Authorization Violation`. A subscription outside the token's org fails with `Permissions Violation for Subscription to "priompt.<org>...."`. Requires v0.7.3 or later; earlier versions accept only the broker token, which gives every holder full rights.
+
+:::note
+A subscription that's already open stays open after its token is revoked or expires. To cut off a subscriber, remove its token and restart the server.
+:::
 
 ## Encrypt data at rest
 
