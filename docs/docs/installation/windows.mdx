@@ -48,7 +48,7 @@ To build and install `priompt.exe`:
    ```
 
    ```text title="Output"
-   priompt v0.7.2 (commit unknown, go1.26.4)
+   priompt v0.7.3 (commit unknown, go1.26.4)
    ```
 
    The Go version in the output is the one you built with.
@@ -74,10 +74,10 @@ To create the directory and the admin token:
    wrote admin token to tokens.txt
 
      start server:  priompt serve -tokens-file tokens.txt
-     point client:  export PRIOMPT_URL=priompt://<token>@localhost:8443
+     point client:  $env:PRIOMPT_URL = "priompt://<token>@localhost:8443"
    ```
 
-   Keep the token. Clients use it in step 4. The printed `export` line is shell syntax; step 4 shows the PowerShell form.
+   Keep the token. Clients use it in step 4.
 
 3. Restrict the directory to SYSTEM and Administrators, because it holds the tokens file and the database:
 
@@ -121,7 +121,7 @@ To install and start the service:
 
    The `Status` column shows `Running`.
 
-NATS stays on loopback in this setup, so only local processes can subscribe to change events. For agents on other hosts, add `-nats-addr 0.0.0.0:4222` to `AppParameters` and `PRIOMPT_NATS_TOKEN=<nats-token>` to `AppEnvironmentExtra`, with a token from `priompt gen-token`. The server refuses an off-loopback NATS address without a token.
+NATS stays on loopback in this setup, so only local processes can subscribe to change events. For agents on other hosts, add `-nats-addr 0.0.0.0:4222` to `AppParameters` and `PRIOMPT_NATS_TOKEN=<nats-token>` to `AppEnvironmentExtra`, with a token from `priompt gen-token`. The server refuses an off-loopback NATS address without a token. Agents then subscribe with their own API token: `nats://<token>@<your-host>:4222`.
 
 To open the firewall for clients:
 
@@ -144,12 +144,12 @@ To publish a first prompt and read it back:
 2. Write a template to a file, and publish it:
 
    ```powershell
-   Set-Content -Encoding ascii welcome.txt 'Hi {name}, welcome to {org}!'
+   Set-Content -Encoding ascii welcome.txt 'Welcome to {org}, {name}! Ask me anything to get started.'
    priompt publish -uri priompt://acme/onboarding/welcome -file welcome.txt -slot name -slot org
    ```
 
    ```text title="Output"
-   published priompt://acme/onboarding/welcome (67af626adb25) — subscribers notified
+   published priompt://acme/onboarding/welcome (9ae06087ed69) — subscribers notified
    ```
 
 3. List the prompts:
@@ -159,11 +159,11 @@ To publish a first prompt and read it back:
    ```
 
    ```text title="Output"
-   priompt://acme/onboarding/welcome	67af626adb25
+   priompt://acme/onboarding/welcome	9ae06087ed69
    ```
 
-:::warning Piped text in Windows PowerShell 5.1
-Windows PowerShell 5.1 adds a byte-order mark when it pipes text to a native program. `priompt publish -file -` stores that mark as part of the template, and validation doesn't catch it. Write the template to a file with `Set-Content -Encoding ascii` as shown, or use PowerShell 7.
+:::note File encodings
+`priompt publish` strips a UTF-8 byte-order mark and converts CRLF line endings to LF, so a file from `Set-Content` or text piped from PowerShell 5.1 stores the same template as on Linux. It rejects UTF-16 files, which `Set-Content -Encoding Unicode` and `Out-File` in PowerShell 5.1 write, with `<file>: file is UTF-16; save as UTF-8`. Requires v0.7.3 or later.
 :::
 
 <ConnectClient />

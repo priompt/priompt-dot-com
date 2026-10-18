@@ -96,6 +96,8 @@ Returns the served prompts whose URI starts with `prefix`, sorted by URI. A "rep
 | --- | --- | --- |
 | `entries` | `repeated PromptEntry` | One entry per prompt: `uri` and `version_hash`. |
 
+With an org-scoped token, an empty `prefix` lists the token's org.
+
 **Errors**: `PermissionDenied` when an org-scoped token lists outside `priompt://<org>` or `priompt://<org>/...`.
 
 ```sh
@@ -107,7 +109,7 @@ call ListPrompts '{"prefix":"priompt://acme/"}'
   "entries": [
     {
       "uri": "priompt://acme/onboarding/welcome",
-      "versionHash": "e345dcf74d01b792c098e087311615829e1529363097a89eba31d522d0fcdbea"
+      "versionHash": "22e5cc10ac0f3d70fd97c6b554a36abcb3173731412212dc222106e9cbcac402"
     },
     {
       "uri": "priompt://acme/support/agent",
@@ -297,7 +299,7 @@ call CreateBranch '{"uri":"priompt://acme/support/agent","name":"refunds"}'
 
 ## MergeBranch
 
-Merges `from` into `into` and records a merge commit with two parents. The merge takes the content of `from`; there's no three-way content merge. Merging into `main` moves the served version and clears the cache.
+Merges `from` into `into` and records a merge commit with two parents. The merge takes the content of `from`; there's no three-way content merge. Merging into `main` moves the served version, clears the cache, and notifies subscribers with the verdict when the content changes.
 
 **Request**: `MergeBranchRequest`
 
@@ -328,7 +330,7 @@ call MergeBranch '{"uri":"priompt://acme/support/agent","from":"refunds","messag
 
 ## DiffCommits
 
-Runs the semantic diff between two commits. The response has the same shape as [`DiffPrompt`](#diffprompt).
+Runs the semantic diff between two commits of the prompt at `uri`. Both commits must belong to that prompt; a commit of any other prompt returns `commit not found`. The response has the same shape as [`DiffPrompt`](#diffprompt).
 
 **Request**: `DiffCommitsRequest`
 
@@ -380,7 +382,7 @@ call SetBranch '{"uri":"priompt://acme/support/agent","commitHash":"7243eec584c5
 
 ## Change events
 
-When `main` moves, the server publishes an event on its embedded NATS broker (`-nats-addr`). The subject is the URI with `priompt://` removed and `/` replaced by `.`: `priompt://acme/support/agent` becomes `priompt.acme.support.agent`. The payload is JSON:
+When `main` moves, the server publishes an event on its embedded NATS broker (`-nats-addr`). The subject is `priompt.` followed by the URI's segments joined by `.`, with every byte other than a letter, a digit, `_`, or `-` percent-encoded inside a segment: `priompt://acme/support/agent` becomes `priompt.acme.support.agent`, and `priompt://acme.corp/x/a.b` becomes `priompt.acme%2Ecorp.x.a%2Eb`. The payload is JSON:
 
 ```json
 {"version":"222aa819c4988059c57f9c8805fdd451cc76dac2fdc875a98a6b2bfe86896c1a","classification":"structural"}

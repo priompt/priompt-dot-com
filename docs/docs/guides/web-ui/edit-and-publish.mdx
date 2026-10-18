@@ -42,9 +42,9 @@ Priompt derives a prompt's slots from its template, so a new `{placeholder}` add
 
    The **Semantic propagation diff** panel opens under the editor with the verdict for each changed region.
 
-:::info Known issue
-In the current UI release, **Check impact** rates every edit `structural`, because the UI drops the draft from its request to the server. The verdict on the commit page after you save is correct. See [Review a commit and its verdict](./review-commit.mdx).
-:::
+   ![Semantic propagation diff panel with the overall verdict minor edit, and one replace hunk on line 3 rated minor edit with its signal scores.](/img/ui/05-check-impact.png)
+
+   *Adding a third first step to line 3 is a `minor edit`.*
 
 ## 4. Commit the change
 
@@ -52,8 +52,9 @@ To publish the edit:
 
 1. Select **Save**.
 2. In **Commit changes**, enter a commit message of up to 72 characters.
-3. Check **Commit to:**. It shows the branch you opened the editor on, usually **main**.
-4. Select **Commit changes**.
+3. Optionally, add an extended description. It's saved as the commit message's body, and the commit page shows it under the message.
+4. Check **Commit to:**. It shows the branch you opened the editor on, usually **main**, and lists the prompt's other branches.
+5. Select **Commit changes**.
 
    ![Commit changes dialog with the message "Offer project import as a first step", an empty description, and Commit to set to main.](/img/ui/06-commit-dialog.png)
 

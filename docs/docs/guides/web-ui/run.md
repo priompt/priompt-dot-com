@@ -47,7 +47,7 @@ On a fresh server there's only the demo prompt. To get several prompts with hist
 sh priompt/seed-dev.sh localhost:8443
 ```
 
-It publishes about seven prompts under `acme`, some with several versions. It uses `publish`, not `put`: `put` writes content without a commit, which leaves the history and diff views empty. Commits made from the CLI have no message. Commits you make in the UI do.
+It publishes about seven prompts under `acme`, some with several versions. Commits made from the CLI have no message. Commits you make in the UI do.
 
 ## What you can do
 
@@ -59,12 +59,11 @@ It publishes about seven prompts under `acme`, some with several versions. It us
 | Create a prompt | **New prompt** in an org |
 | See a prompt's history and each diff | **History** on a prompt, then a commit |
 | Branch, merge, promote, and roll back | **Branches** tab, then pick a prompt |
-| Compare two branches | `/<org>/compare/main...dev?path=<prompt path>` |
-| Search paths and content | `/<org>/search?q=<text>` |
+| Compare two branches | **Compare** on a branch row, or on a prompt shown on another branch |
+| Search paths and content | The navbar search box inside an org |
 | Check the server connection | Org **Settings** → **Connection** |
 
 ## Limitations
 
-- Branch lists show only `main`, `dev`, `staging`, and `prod`. The server has no `ListBranches` RPC yet, so the UI checks those names for each prompt.
-- Compare and search have no menu entry yet. Use the URLs in the table above.
-- Some controls are placeholders that do nothing yet: the account menu, pull requests, inbox, upload, the Ctrl+K dialog, `/settings`, `/init`, and everything below **Connection** on an org's settings page.
+- Branch lists check `main`, `dev`, `staging`, and `prod` by name, because the server has no `ListBranches` RPC yet ([priompt#45](https://github.com/priompt/priompt/issues/45)). Show other branches with **Show another branch** on the **Branches** tab.
+- Some controls are placeholders that do nothing yet: the account menu, pull requests, inbox, upload, the Ctrl+K dialog on the home page, `/settings`, `/init`, and everything below **Connection** on an org's settings page.

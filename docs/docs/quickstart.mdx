@@ -30,9 +30,9 @@ To start the server in Docker:
 
 1. Run the published image:
 
-   <Cmd lang="sh">{`docker run -d --name priompt -p 8443:8443 -v priompt-data:/data {{dockerImage}} serve -db /data/priompt.db`}</Cmd>
+   <Cmd lang="sh">{`docker run -d --name priompt -p 8443:8443 -v priompt-data:/data {{dockerImage}}`}</Cmd>
 
-   The server listens on port `8443`. `-db /data/priompt.db` keeps its database in the `priompt-data` volume. Without it, the v0.7.2 image writes the database outside the volume, and removing the container loses your prompts. The [Production checklist](/operations/production-checklist) covers this for real servers.
+   The server listens on port `8443` and keeps its database in the `priompt-data` volume. The [Production checklist](/operations/production-checklist) covers what to change for a real server.
 
 2. Check the log:
 
@@ -41,9 +41,9 @@ To start the server in Docker:
    ```
 
    ```text title="Output"
-   2026/10/18 00:42:08 seeded demo prompt priompt://acme/onboarding/welcome
-   2026/10/18 00:42:08 priompt v0.7.2 (a6f64e4fcb66a75ed1fd1826c662ce61e4c9981c) serving on :8443 (tls=false mtls=false auth=0-token cache=mem embed=lexical(offline) nats=127.0.0.1:4222 metrics=:2112 ratelimit=0/s)
-   2026/10/18 00:42:08 metrics on :2112/metrics
+   2026/10/18 18:24:45 seeded demo prompt priompt://acme/onboarding/welcome
+   2026/10/18 18:24:45 priompt v0.7.3 (b917a28eac1eab73904841432d8cfa8da1ea4618) serving on :8443 (tls=false mtls=false auth=0-token cache=mem embed=lexical(offline) nats=127.0.0.1:4222 metrics=:2112 ratelimit=0/s)
+   2026/10/18 18:24:45 metrics on :2112/metrics
    ```
 
 </TabItem>
@@ -66,7 +66,7 @@ To build and start the server:
    ```
 
    ```text title="Output"
-   priompt v0.7.2 (commit unknown, go1.26.4)
+   priompt v0.7.3 (commit unknown, go1.26.4)
    ```
 
 3. Create a working directory and start the server in it:
@@ -79,7 +79,7 @@ To build and start the server:
    ```text title="Output"
    2026/10/18 06:13:54 seeded demo prompt priompt://acme/onboarding/welcome
    2026/10/18 06:13:54 metrics on :2112/metrics
-   2026/10/18 06:13:54 priompt v0.7.2 (unknown) serving on :8443 (tls=false mtls=false auth=0-token cache=mem embed=lexical(offline) nats=127.0.0.1:4222 metrics=:2112 ratelimit=0/s)
+   2026/10/18 06:13:54 priompt v0.7.3 (unknown) serving on :8443 (tls=false mtls=false auth=0-token cache=mem embed=lexical(offline) nats=127.0.0.1:4222 metrics=:2112 ratelimit=0/s)
    ```
 
    The server keeps its database in `priompt.db` and runs in this terminal until you press Ctrl+C. Open a new terminal for the next steps.
@@ -119,7 +119,8 @@ To fetch the demo prompt from Python:
 
    ```text title="Output"
    Hi Ada, welcome to Acme!
-   e345dcf74d01
+
+   22e5cc10ac0f
    ```
 
 </TabItem>
@@ -155,13 +156,14 @@ To fetch the demo prompt from Node:
 
    ```text title="Output"
    Hi Ada, welcome to Acme!
-   e345dcf74d01
+
+   22e5cc10ac0f
    ```
 
 </TabItem>
 </Tabs>
 
-The version hash identifies this exact content. It changes with every publish.
+The blank line comes from the template, which ends with a newline. The version hash identifies this exact content. It changes with every publish that changes the content.
 
 ## 3. Publish a change and watch it arrive
 

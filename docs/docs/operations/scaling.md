@@ -88,7 +88,7 @@ To check that events cross nodes:
 1. Watch a prompt through node B's broker:
 
    ```sh
-   priompt watch -uri priompt://acme/onboarding/welcome -nats-url nats://<nats-token>@node-b:4222
+   priompt watch -uri priompt://acme/onboarding/welcome -nats-url nats://<api-token>@node-b:4222
    ```
 
 2. In another terminal, publish through node A:
@@ -100,7 +100,7 @@ To check that events cross nodes:
    The watcher on node B prints the change:
 
    ```text title="Output"
-   2026/10/18 10:19:23 watching priompt://acme/onboarding/welcome on nats://<nats-token>@node-b:4222
+   2026/10/18 10:19:23 watching priompt://acme/onboarding/welcome on nats://***@node-b:4222
    2026/10/18 10:19:25 priompt://acme/onboarding/welcome updated -> 4146f71b692cee44f267330189c8d26fd3ac115c10b351e69ffb0939d122a4e3 [structural]
    ```
 

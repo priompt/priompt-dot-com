@@ -11,11 +11,14 @@ doc_type: concept
 
 The server runs an embedded **NATS** broker, an open-source message broker, inside the same process, so Priompt stays a single binary. It listens on `127.0.0.1:4222` by default. `-nats-addr ""` turns live updates off.
 
-Each prompt address maps to a NATS **subject**, the channel a subscriber listens on. The server replaces the scheme with `priompt.` and each `/` with `.`:
+Each prompt address maps to a NATS **subject**, the channel a subscriber listens on. The server replaces the scheme with `priompt.` and each `/` with `.`. Inside each segment, every byte other than a letter, a digit, `_`, or `-` is percent-encoded, so two addresses never share a subject:
 
 ```text
 priompt://acme/support/agent  →  priompt.acme.support.agent
+priompt://acme.corp/x/a.b     →  priompt.acme%2Ecorp.x.a%2Eb
 ```
+
+The SDKs compute the subject for you. Releases before priompt v0.7.3, `priompt-sdk` 0.7.1, and `@priompt/client` 0.1.1 didn't encode segments, so upgrade the server and the SDKs together if your addresses contain such characters.
 
 The diagram shows what happens when an author publishes a new version to `main`:
 
@@ -57,7 +60,7 @@ Only changes to the served HEAD send events:
 | Publish the content `main` already serves | No. |
 | Publish to another branch | No. |
 | Roll back with `SetBranch` on `main` | Yes, with the verdict of the change from the old served version. |
-| Merge into `main` | No, in v0.7.2. |
+| Merge into `main` that changes the served content | Yes, with the verdict. Since v0.7.3. |
 | `priompt put` or `priompt import` | No. |
 
 ## Verdict policy
@@ -76,7 +79,7 @@ Push is best effort. The broker doesn't store events, so an agent that's disconn
 Each server node embeds its own broker. With more than one node, cluster the brokers, or agents connected to one node miss changes published on another. See [Scale to multiple nodes](/operations/scaling).
 
 :::warning Events are a security boundary
-Events name every prompt that changes and carry the verdict agents act on. An open broker discloses every org's prompt names and lets anyone forge an event. The server refuses to bind NATS to a non-loopback address without `-nats-token`. In v0.7.2 that token is shared by all subscribers, so any subscriber can watch every org. Addresses that differ only in `/` versus `.` also share a subject: `priompt://acme/corp/x` and `priompt://acme.corp/x` both publish on `priompt.acme.corp.x`. See [Security](/operations/security).
+Events name every prompt that changes and carry the verdict agents act on. An open broker discloses every org's prompt names and lets anyone forge an event. The server refuses to bind NATS to a non-loopback address without `-nats-token`, which is the server's own full-rights credential: keep it off agents. When API authentication is also on, each agent connects with its own API token, as in `nats://<api-token>@prompts.example.com:4222`, and can only subscribe to its own org's prompts. An admin token can subscribe to every org. See [Security](/operations/security).
 :::
 
 ## Related

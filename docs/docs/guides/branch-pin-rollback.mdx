@@ -334,7 +334,7 @@ main serves: You are a support agent for {org}. Ask for the order number first.
 ```
 
 :::note
-In v0.7.2, a merge into `main` doesn't send a change event. Subscribed agents pick up the merged version on their next fetch, or when their cache TTL expires. A publish or a rollback on `main` does send one.
+A merge into `main` sends a change event, like a publish or a rollback on `main`. In v0.7.2 and earlier it didn't, and agents picked up the merged version on their next fetch after their cache expired.
 :::
 
 ## 8. Roll back

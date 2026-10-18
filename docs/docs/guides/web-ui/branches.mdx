@@ -36,34 +36,34 @@ To open a prompt's branches:
 
    *The new branch starts at the source branch's latest commit.*
 
-   A banner confirms **Created dev from main.** The **Prompt** list resets, so select the prompt again to see `dev` in the branch list.
+   A banner confirms **Created dev from main.**, and `dev` appears in the branch list.
 
 :::note
-The branch list shows only `main`, `dev`, `staging`, and `prod`. The server accepts other names, but the UI doesn't list them yet, so use these four.
+The server has no call that lists a prompt's branches yet, so the list checks for `main`, `dev`, `staging`, and `prod` by name. To show a branch with another name, enter it in **Show another branch**, or add `?branch=<name>` to the page's URL. After you create such a branch, the banner links to it. Listing every branch automatically is tracked in [priompt#45](https://github.com/priompt/priompt/issues/45).
 :::
 
 ## 3. Commit a change to dev
 
-Edits on `dev` don't change what agents get from `main`. The editor has no branch switch yet, so open it on `dev` by URL.
+Edits on `dev` don't change what agents get from `main`.
 
 To commit to `dev`:
 
-1. Go to `/<org>/edit/dev/<prompt path>`, for example `/acme/edit/dev/onboarding/welcome.prompt`.
-2. Change the template and select **Save**.
-3. Enter a commit message. **Commit to:** shows **dev**.
+1. Open the prompt, and pick **dev** in the branch switcher next to the file name.
+2. Select **Edit**, change the template, and select **Save**.
+3. Enter a commit message. **Commit to:** shows **dev**, and lists the prompt's other branches too.
 4. Select **Commit changes**.
 
    The **Branches** tab now shows your message as the latest commit on `dev`.
 
-   ![Branches view for onboarding/welcome.prompt with main (default, serving) and the new dev branch highlighted, with its Merge into main button.](/img/ui/10-branches.png)
+   ![Branches view for onboarding/welcome.prompt with main (default, serving) and the new dev branch highlighted, with its Compare and Merge into main buttons, and the Show another branch field below.](/img/ui/10-branches.png)
 
    *Each branch shows its latest commit message and author.*
 
 ## 4. Compare dev with main
 
-Compare has no menu entry yet, so open it by URL.
+1. In the branch list, select **Compare** on the `dev` row. The prompt page offers the same **Compare** button when it shows a branch other than `main`.
 
-1. Go to `/<org>/compare/main...dev?path=<prompt path>`, for example `/acme/compare/main...dev?path=onboarding/welcome.prompt`.
+   The page opens at `/<org>/compare/main...dev?path=<prompt path>`, for example `/acme/compare/main...dev?path=onboarding/welcome.prompt`.
 
    ![Compare changes for main and dev: 1 commit ahead, an inserted line 4, and the semantic propagation diff verdict localized tweak.](/img/ui/11-compare.png)
 
@@ -99,13 +99,13 @@ Rolling back points `main` at an earlier commit. Nothing is deleted, and agents 
 1. Under **Rollback**, find the commit you want `main` to serve.
 2. Select **Roll back to here** on that row.
 
-   ![Rollback list for main after a rollback: commit 861d338 marked current, with Roll back to here buttons on the three older commits.](/img/ui/14-rollback.png)
+   ![Rollback list after a rollback: commit 06100c3 marked current, Roll forward to here on the two newer commits from dev and staging, and Roll back to here on the three older commits.](/img/ui/14-rollback.png)
 
-   *`main` points at `861d338` again, the commit before the merge.*
+   *`main` points at `06100c3` again, the commit before the change from `dev`. The newer commits can still be rolled forward to.*
 
-   A banner confirms that `main` now points at the commit.
+   A banner confirms that `main` now points at the commit, with **Undo: move main back to `<commit>`** to return `main` to where it was.
 
-After a rollback, the list starts at the commit `main` now points at. The later commits still exist, but the list doesn't show them.
+The list shows the commits of `main`, `dev`, `staging`, and `prod`, newest first, and marks the one `main` serves as **current**. Newer commits offer **Roll forward to here**. A commit that no listed branch reaches, such as a merge commit you rolled back past, drops out of the list once you leave the page; use **Undo** right away, or roll forward from code. Listing every commit is tracked in [priompt#45](https://github.com/priompt/priompt/issues/45).
 
 ## Next steps
 

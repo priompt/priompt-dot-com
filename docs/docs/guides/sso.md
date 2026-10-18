@@ -81,7 +81,7 @@ acme-readers     acme
 ```
 
 :::warning Trailing comments need v0.7.3
-From v0.7.3, a `#` after the first field starts a comment in `clients.txt`, `groups.txt`, and the server's tokens file, and a line with two org words is rejected at startup. In v0.7.2 and earlier, a trailing `# comment` is read as more fields: `prompt-admins rw # platform team` issues tokens scoped to the org `team`. On those versions, put comments on separate lines.
+From `priompt-auth` v0.7.1 and server v0.7.3, a `#` after the first field starts a comment in `clients.txt`, `groups.txt`, and the server's tokens file, and a line with two org words is rejected at startup. In earlier versions, a trailing `# comment` is read as more fields: `prompt-admins rw # platform team` issues tokens scoped to the org `team`. On those versions, put comments on separate lines.
 :::
 
 ## 4. Start priompt-auth

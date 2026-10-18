@@ -87,10 +87,8 @@ The identifier doesn't exist, or it exists for a different prompt. Don't retry.
 | `prompt "<uri>" not found` | `GetPrompt`, `DiffPrompt` | Check the URI with `ListPrompts`. Publish the prompt first if it's new. |
 | `ref "<ref>" not found for "<uri>"` | `GetPrompt` with `ref` | Use a branch name, or a full 64-character commit hash of this prompt. Short hashes and version hashes aren't accepted. |
 | `branch not found` | `History`, `CreateBranch`, `MergeBranch` | The prompt has no such branch, or the prompt has no commits yet. `MergeBranch` needs `from`. |
-| `commit not found` | `DiffCommits` | Use full commit hashes from `History`. |
+| `commit not found` | `DiffCommits` | Use full commit hashes from `History` of the same prompt. Both commits must belong to the requested URI. |
 | `commit "<hash>" not found for "<uri>"` | `SetBranch` | Use a full commit hash that belongs to this prompt. |
-
-`History` on a prompt that was only written with `priompt put` or `priompt import` also returns `branch not found`, because those commands write the served content without a commit.
 
 ## AlreadyExists
 
@@ -164,8 +162,8 @@ A failing embedding endpoint doesn't fail a publish. The publish succeeds, and s
 Connection errors come from the client, before any request reaches the server:
 
 - Nothing listens at the address: check `-addr`, the host in `PRIOMPT_URL`, and the firewall.
-- `error reading server preface: EOF`: the server uses TLS and the client doesn't. Add `-tls` and `-ca-cert`.
-- `authentication handshake failed: tls: failed to verify certificate`: the client doesn't trust the server's certificate. Pass the CA with `-ca-cert`.
+- `error reading server preface: EOF`: the server uses TLS and the client doesn't. Add `-tls`, plus `-ca-cert` for a certificate from a private CA.
+- `authentication handshake failed: tls: failed to verify certificate`: the client doesn't trust the server's certificate. Pass the CA that signed it with `-ca-cert`.
 
 For TLS and certificates, see [Security](../operations/security.md).
 
@@ -175,7 +173,7 @@ For TLS and certificates, see [Security](../operations/security.md).
 | --- | --- | --- |
 | `stored prompt invalid: <reason>` | `GetPrompt` read a stored prompt that fails validation. The server refuses to serve it rather than hand a broken prompt to an agent. | Publish a valid version, or roll `main` back with `SetBranch`. |
 
-A database written through the server never holds an invalid prompt. This error means the data was changed outside the server, for example by `priompt import` of a hand-edited file, which doesn't validate.
+A database written through the server or the `priompt` CLI never holds an invalid prompt. This error means the data was changed outside them, for example by editing the database directly, or by `priompt import` in v0.7.2 or earlier, which didn't validate.
 
 ## Unauthenticated
 
