@@ -1,0 +1,186 @@
+---
+title: Install on macOS
+sidebar_label: macOS
+description: Build the Priompt server with Go and run it at login as a launchd agent on macOS.
+doc_type: how-to
+---
+
+import ConnectClient from "./_connect-client.mdx"
+
+This guide builds the Priompt server on a Mac and runs it at login as a launchd agent. It works on Apple Silicon and Intel Macs. To run the server in a container instead, see [Install with Docker](./docker.mdx).
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+- **macOS 12 or later**: on Apple Silicon or Intel.
+- **Homebrew**: to install Go. See [brew.sh](https://brew.sh).
+
+## 1. Build the binary
+
+To build and install the `priompt` binary:
+
+1. Install Go 1.25 or later:
+
+   ```sh
+   brew install go
+   ```
+
+2. Build `priompt` into the current directory. No clone is needed:
+
+   ```sh
+   GOBIN=$PWD go install github.com/priompt/priompt/cmd/priompt@latest
+   ```
+
+3. Install it and check the version:
+
+   ```sh
+   sudo install -m 0755 priompt /usr/local/bin/priompt
+   priompt version
+   ```
+
+   The command prints the version, such as `priompt v0.7.2 (commit unknown, go1.25.14)`.
+
+A binary you build yourself isn't quarantined by Gatekeeper. If you copy one from another Mac and macOS blocks it, clear the flag with `xattr -d com.apple.quarantine /usr/local/bin/priompt`.
+
+## 2. Create the data directory and credentials
+
+To create the directory and the admin token:
+
+1. Create a data directory and switch to it:
+
+   ```sh
+   mkdir -p ~/Library/Application\ Support/priompt ~/Library/Logs/priompt
+   cd ~/Library/Application\ Support/priompt
+   ```
+
+2. Create the tokens file with an admin token:
+
+   ```sh
+   priompt init
+   ```
+
+   ```text title="Output"
+   wrote admin token to tokens.txt
+
+     start server:  priompt serve -tokens-file tokens.txt
+     point client:  export PRIOMPT_URL=priompt://<token>@localhost:8443
+   ```
+
+   Keep the `PRIOMPT_URL` line. Clients use it in step 4.
+
+## 3. Run the server at login with launchd
+
+To run the server as a launchd agent:
+
+1. Write the agent's property list. The heredoc fills in your home directory:
+
+   ```sh
+   cat > ~/Library/LaunchAgents/com.priompt.server.plist <<EOF
+   <?xml version="1.0" encoding="UTF-8"?>
+   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+   <plist version="1.0">
+   <dict>
+     <key>Label</key><string>com.priompt.server</string>
+     <key>ProgramArguments</key>
+     <array>
+       <string>/usr/local/bin/priompt</string>
+       <string>serve</string>
+       <string>-addr</string><string>:8443</string>
+       <string>-db</string><string>$HOME/Library/Application Support/priompt/priompt.db</string>
+       <string>-tokens-file</string><string>$HOME/Library/Application Support/priompt/tokens.txt</string>
+       <string>-metrics-addr</string><string>127.0.0.1:2112</string>
+     </array>
+     <key>EnvironmentVariables</key>
+     <dict>
+       <key>PRIOMPT_SEED</key><string>false</string>
+     </dict>
+     <key>RunAtLoad</key><true/>
+     <key>KeepAlive</key><true/>
+     <key>StandardErrorPath</key><string>$HOME/Library/Logs/priompt/priompt.log</string>
+     <key>StandardOutPath</key><string>$HOME/Library/Logs/priompt/priompt.log</string>
+   </dict>
+   </plist>
+   EOF
+   ```
+
+2. Load the agent:
+
+   ```sh
+   launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.priompt.server.plist
+   ```
+
+3. Check that it's running:
+
+   ```sh
+   launchctl print gui/$(id -u)/com.priompt.server | grep state
+   tail ~/Library/Logs/priompt/priompt.log
+   ```
+
+   The state is `running`, and the log ends with the `serving on :8443` line.
+
+To stop the agent, run `launchctl bootout gui/$(id -u)/com.priompt.server`. To start the server at boot before anyone logs in, put the property list in `/Library/LaunchDaemons/`, add a `UserName` key, and load it with `sudo launchctl bootstrap system`.
+
+NATS stays on loopback in this setup, so only local processes can subscribe to change events. For agents on other hosts, add `-nats-addr 0.0.0.0:4222` and a `PRIOMPT_NATS_TOKEN` variable set to the output of `priompt gen-token`. The server refuses an off-loopback NATS address without a token.
+
+:::tip Firewall prompt
+The first time `priompt` listens on `:8443`, macOS may ask whether to accept incoming connections. If only local apps use the server, use `-addr 127.0.0.1:8443` and the prompt doesn't appear.
+:::
+
+## 4. Connect a client
+
+To publish a first prompt and read it back:
+
+1. Point the CLI at the server with the `PRIOMPT_URL` from step 2:
+
+   ```sh
+   export PRIOMPT_URL=priompt://<token>@localhost:8443
+   ```
+
+2. Publish a prompt:
+
+   ```sh
+   echo 'Hi {name}, welcome to {org}!' | priompt publish -uri priompt://acme/onboarding/welcome -file - -slot name -slot org
+   ```
+
+   ```text title="Output"
+   published priompt://acme/onboarding/welcome (22e5cc10ac0f) — subscribers notified
+   ```
+
+<ConnectClient />
+
+## Upgrade
+
+To upgrade to a new release, build and install the new binary, then restart the agent:
+
+```sh
+GOBIN=$PWD go install github.com/priompt/priompt/cmd/priompt@latest
+sudo install -m 0755 priompt /usr/local/bin/priompt
+launchctl kickstart -k gui/$(id -u)/com.priompt.server
+```
+
+Pending schema migrations run when the server starts.
+
+## Uninstall
+
+To remove the agent, the binary, and all data:
+
+1. Unload and delete the agent:
+
+   ```sh
+   launchctl bootout gui/$(id -u)/com.priompt.server
+   rm ~/Library/LaunchAgents/com.priompt.server.plist
+   ```
+
+2. Delete the binary and the data directory. This deletes every prompt, so back up first:
+
+   ```sh
+   sudo rm /usr/local/bin/priompt
+   rm -r ~/Library/Application\ Support/priompt
+   ```
+
+## Next steps
+
+- [Production checklist](/operations/production-checklist): set what a server needs before it takes real traffic.
+- [Storage and backups](/operations/storage): back up and restore the database.
+- [Client SDKs](/sdks): use Priompt from your agents.

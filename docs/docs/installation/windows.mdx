@@ -1,0 +1,234 @@
+---
+title: Install on Windows
+sidebar_label: Windows
+description: Build the Priompt server with Go and run it as a Windows service with PowerShell.
+doc_type: how-to
+---
+
+import ConnectClient from "./_connect-client.mdx"
+
+This guide builds the Priompt server on Windows and runs it as a Windows service. It works on Windows 10, Windows 11, and Windows Server 2019 or later, on amd64. To run the server in a container instead, see [Install with Docker](./docker.mdx).
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+- **PowerShell, run as administrator**: every command on this page is PowerShell, and the install steps write to `C:\Program Files`.
+- **winget**: to install Go and NSSM. It ships with current Windows versions.
+
+## 1. Build the binary
+
+To build and install `priompt.exe`:
+
+1. Install Go 1.25 or later, then open a new PowerShell window so `go` is on your `PATH`:
+
+   ```powershell
+   winget install GoLang.Go
+   ```
+
+2. Build `priompt.exe` into the current directory. No clone is needed:
+
+   ```powershell
+   $env:GOBIN = "$PWD"; go install github.com/priompt/priompt/cmd/priompt@latest
+   ```
+
+3. Copy it to `C:\Program Files\Priompt` and add that directory to the system `PATH`:
+
+   ```powershell
+   New-Item -ItemType Directory -Force "C:\Program Files\Priompt" | Out-Null
+   Copy-Item priompt.exe "C:\Program Files\Priompt\"
+   $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+   [Environment]::SetEnvironmentVariable("Path", "$machinePath;C:\Program Files\Priompt", "Machine")
+   ```
+
+4. Open a new PowerShell window as administrator, and check the version:
+
+   ```powershell
+   priompt version
+   ```
+
+   ```text title="Output"
+   priompt v0.7.2 (commit unknown, go1.26.4)
+   ```
+
+   The Go version in the output is the one you built with.
+
+## 2. Create the data directory and credentials
+
+To create the directory and the admin token:
+
+1. Create the data directory and switch to it:
+
+   ```powershell
+   New-Item -ItemType Directory -Force C:\ProgramData\Priompt | Out-Null
+   cd C:\ProgramData\Priompt
+   ```
+
+2. Create the tokens file with an admin token:
+
+   ```powershell
+   priompt init
+   ```
+
+   ```text title="Output"
+   wrote admin token to tokens.txt
+
+     start server:  priompt serve -tokens-file tokens.txt
+     point client:  export PRIOMPT_URL=priompt://<token>@localhost:8443
+   ```
+
+   Keep the token. Clients use it in step 4. The printed `export` line is shell syntax; step 4 shows the PowerShell form.
+
+3. Restrict the directory to SYSTEM and Administrators, because it holds the tokens file and the database:
+
+   ```powershell
+   icacls C:\ProgramData\Priompt /inheritance:r /grant:r "SYSTEM:(OI)(CI)F" "Administrators:(OI)(CI)F"
+   ```
+
+## 3. Run the server as a Windows service
+
+`priompt.exe` is a console program, so a service manager runs it as a service. This guide uses [NSSM](https://nssm.cc/), a third-party, open-source service manager.
+
+To install and start the service:
+
+1. Install NSSM, then open a new PowerShell window as administrator:
+
+   ```powershell
+   winget install NSSM.NSSM
+   ```
+
+2. Create and configure the service:
+
+   ```powershell
+   $dir = "C:\ProgramData\Priompt"
+   nssm install Priompt "C:\Program Files\Priompt\priompt.exe"
+   nssm set Priompt AppParameters "serve -addr :8443 -db $dir\priompt.db -tokens-file $dir\tokens.txt -metrics-addr 127.0.0.1:2112"
+   nssm set Priompt AppDirectory $dir
+   nssm set Priompt AppEnvironmentExtra "PRIOMPT_SEED=false"
+   nssm set Priompt AppStderr "$dir\priompt.log"
+   nssm set Priompt AppRotateFiles 1
+   nssm set Priompt Start SERVICE_AUTO_START
+   ```
+
+   The server writes its log, including one JSON audit line per request, to `priompt.log`.
+
+3. Start the service and check its status:
+
+   ```powershell
+   nssm start Priompt
+   Get-Service Priompt
+   ```
+
+   The `Status` column shows `Running`.
+
+NATS stays on loopback in this setup, so only local processes can subscribe to change events. For agents on other hosts, add `-nats-addr 0.0.0.0:4222` to `AppParameters` and `PRIOMPT_NATS_TOKEN=<nats-token>` to `AppEnvironmentExtra`, with a token from `priompt gen-token`. The server refuses an off-loopback NATS address without a token.
+
+To open the firewall for clients:
+
+```powershell
+New-NetFirewallRule -DisplayName "Priompt gRPC" -Direction Inbound -Protocol TCP -LocalPort 8443 -Action Allow
+```
+
+If remote agents subscribe to change events, add the same rule for port `4222`.
+
+## 4. Connect a client
+
+To publish a first prompt and read it back:
+
+1. Point the CLI at the server with the token from step 2:
+
+   ```powershell
+   $env:PRIOMPT_URL = "priompt://<token>@localhost:8443"
+   ```
+
+2. Write a template to a file, and publish it:
+
+   ```powershell
+   Set-Content -Encoding ascii welcome.txt 'Hi {name}, welcome to {org}!'
+   priompt publish -uri priompt://acme/onboarding/welcome -file welcome.txt -slot name -slot org
+   ```
+
+   ```text title="Output"
+   published priompt://acme/onboarding/welcome (67af626adb25) — subscribers notified
+   ```
+
+3. List the prompts:
+
+   ```powershell
+   priompt list
+   ```
+
+   ```text title="Output"
+   priompt://acme/onboarding/welcome	67af626adb25
+   ```
+
+:::warning Piped text in Windows PowerShell 5.1
+Windows PowerShell 5.1 adds a byte-order mark when it pipes text to a native program. `priompt publish -file -` stores that mark as part of the template, and validation doesn't catch it. Write the template to a file with `Set-Content -Encoding ascii` as shown, or use PowerShell 7.
+:::
+
+<ConnectClient />
+
+## Upgrade
+
+To upgrade to a new release:
+
+1. Build the new binary, as in step 1:
+
+   ```powershell
+   $env:GOBIN = "$PWD"; go install github.com/priompt/priompt/cmd/priompt@latest
+   ```
+
+2. Stop the service and back up the database:
+
+   ```powershell
+   nssm stop Priompt
+   priompt backup -db C:\ProgramData\Priompt\priompt.db -out C:\ProgramData\Priompt\pre-upgrade.jsonl
+   ```
+
+3. Replace the binary and start the service. Pending schema migrations run on start:
+
+   ```powershell
+   Copy-Item priompt.exe "C:\Program Files\Priompt\" -Force
+   nssm start Priompt
+   ```
+
+## Uninstall
+
+To remove the service, the binary, and all data:
+
+1. Stop and remove the service:
+
+   ```powershell
+   nssm stop Priompt
+   nssm remove Priompt confirm
+   ```
+
+2. Delete the binary and the data directory. This deletes every prompt, so back up first:
+
+   ```powershell
+   Remove-Item -Recurse "C:\Program Files\Priompt"
+   Remove-Item -Recurse C:\ProgramData\Priompt
+   ```
+
+<details>
+<summary>PowerShell equivalents of the shell commands in other pages</summary>
+
+Other pages show bash commands. These are the PowerShell forms:
+
+```powershell
+# Set an environment variable for this session
+$env:PRIOMPT_TOKEN = "<token>"
+
+# Create a random 32-byte encryption key, base64-encoded
+$b = New-Object byte[] 32
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
+[Convert]::ToBase64String($b)
+```
+
+</details>
+
+## Next steps
+
+- [Production checklist](/operations/production-checklist): set what a server needs before it takes real traffic.
+- [Troubleshoot common problems](/guides/troubleshooting): fix validation errors and startup failures.
+- [Client SDKs](/sdks): use Priompt from your agents.

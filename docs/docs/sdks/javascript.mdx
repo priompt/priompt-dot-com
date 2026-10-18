@@ -1,0 +1,348 @@
+---
+title: JavaScript SDK
+sidebar_label: JavaScript
+description: Install the Node client, fetch and publish prompts, preview changes, and subscribe to updates.
+doc_type: reference
+---
+
+The JavaScript SDK is the Node client a JavaScript or TypeScript service uses to fetch its prompts from a Priompt server, publish new versions, and hear when they change. It loads the gRPC contract at runtime, so there's no code generation step.
+
+## Overview
+
+| Detail | Value |
+| --- | --- |
+| Package | <Var name="npmName" /> on npm |
+| Module format | CommonJS: `const { PromptClient } = require(...)`. ES module `import` also works. |
+| Node | 20 or later |
+| Dependencies | `@grpc/grpc-js`, `@grpc/proto-loader`; `nats` as an optional dependency |
+
+The table shows what the client wraps. Everything else in the [gRPC API](../reference/grpc-api.md) is reachable through the `.proto` file that ships in the package (see [Call other RPCs](#call-other-rpcs)).
+
+| Feature | Supported | Method |
+| --- | --- | --- |
+| Fetch the served version | Yes | `get(uri)` |
+| Pin a branch or commit | Yes | `get(uri, ref)` |
+| List prompts under a prefix | No | Stub: `ListPrompts` |
+| Semantic diff of a draft | Yes | `diff(uri, newTemplate)` |
+| Publish to `main` | Yes | `publish(uri, template, slots)` |
+| Subscribe to changes | Yes | `subscribe(uri, onChange)` |
+| Local cache | No | |
+| History, branches, merge, rollback | No | Stubs: `History`, `CreateBranch`, `MergeBranch`, `SetBranch` |
+
+## Setup
+
+To install the client, run:
+
+<Cmd lang="sh">{`npm i {{npmName}}`}</Cmd>
+
+```text title="Output"
+npm warn deprecated nats@2.29.3: Package moved. Use @nats-io/transport-node from https://github.com/nats-io/nats.js
+
+added 38 packages, and audited 39 packages in 19s
+
+found 0 vulnerabilities
+```
+
+npm installs `nats`, which `subscribe()` uses, as an optional dependency. The deprecation warning comes from that package, and the client works with it.
+
+The examples on this page expect a server on `localhost:8443` with no authentication, as in the [Quickstart](../quickstart.mdx). On its first start, the server stores the demo prompt `priompt://acme/onboarding/welcome`.
+
+## Connect
+
+Create a client with the server's address:
+
+<Cmd lang="js">{`
+const { PromptClient } = require("{{npmName}}");
+
+const client = new PromptClient({ host: "localhost:8443" });
+`}</Cmd>
+
+When the server requires a token, pass `token: "<token>"`, or put the address and the token in one connection URL. With `PRIOMPT_URL` set, `new PromptClient()` needs no options:
+
+```sh
+export PRIOMPT_URL=priompt://<token>@localhost:8443
+```
+
+Replace `<token>` with a token the server accepts. See [Secure a server](../operations/security.md) for how to create one.
+
+## Fetch a prompt
+
+Every method returns a promise. The package is CommonJS, and Node doesn't allow top-level `await` in a CommonJS file, so wrap the calls in an `async` function:
+
+<Cmd lang="js" title="first.js">{`
+const { PromptClient } = require("{{npmName}}");
+
+async function main() {
+  const client = new PromptClient({ host: "localhost:8443" });
+  const prompt = await client.get("priompt://acme/onboarding/welcome");
+
+  console.log(prompt.template);
+  console.log(prompt.slots, prompt.version_hash.slice(0, 12));
+  client.close();
+}
+
+main();
+`}</Cmd>
+
+```text title="Output"
+Hi {name}, welcome to {org}!
+[ 'name', 'org' ] e345dcf74d01
+```
+
+In an ES module (a `.mjs` file, or `"type": "module"` in `package.json`), import the class by name and use top-level `await`:
+
+<Cmd lang="js" title="first.mjs">{`
+import { PromptClient } from "{{npmName}}";
+
+const client = new PromptClient({ host: "localhost:8443" });
+const prompt = await client.get("priompt://acme/onboarding/welcome");
+
+console.log(prompt.template);
+client.close();
+`}</Cmd>
+
+```text title="Output"
+Hi {name}, welcome to {org}!
+```
+
+The response has the fields `uri`, `template`, `slots`, `version_hash`, and `commit_hash`. Field names keep their snake case. `commit_hash` is set only when you pass a `ref`. The [Python SDK](./python.mdx#fetch-a-prompt) page describes each field.
+
+## Configuration options
+
+The constructor takes one options object:
+
+| Name | Default | Env var | Description |
+| --- | --- | --- | --- |
+| `host` | none | | Server address as `host:port`. When set, the client doesn't read `url` or `PRIOMPT_URL`. |
+| `url` | none | `PRIOMPT_URL` | Connection URL, `priompt://<token>@host:port`. Read only when `host` is not set. |
+| `token` | none | | Bearer token, sent as `authorization: Bearer <token>`. Wins over the token in the URL. |
+| `tls` | `false` | | Connect over TLS. |
+| `caCert` | none | | Path to the CA certificate that signed the server's certificate. Needed for a private CA. |
+| `clientCert` | none | | Path to a client certificate, for a server that requires mTLS. Pass it together with `clientKey`. |
+| `clientKey` | none | | Path to the client certificate's private key. |
+| `natsUrl` | none | | Broker URL for `subscribe()`. It may carry the broker token: `nats://<nats-token>@127.0.0.1:4222`. |
+| `natsToken` | none | | Broker token passed on its own. Wins over the token in `natsUrl`. |
+
+The client doesn't read `PRIOMPT_TOKEN`, and it has no local cache. Without `host`, `url`, or `PRIOMPT_URL`, the constructor throws `PromptClient needs host, url, or PRIOMPT_URL`.
+
+## Publish a prompt
+
+`publish()` stores a new version on `main`, so agents get it on their next fetch, and subscribers receive a change event. Declare every slot the template uses:
+
+<Cmd lang="js">{`
+const { PromptClient } = require("{{npmName}}");
+
+async function main() {
+  const client = new PromptClient({ host: "localhost:8443" });
+  const uri = "priompt://acme/onboarding/goodbye";
+
+  const res = await client.publish(uri, "Bye {name}, see you soon!", ["name"]);
+  console.log("published", res.version_hash.slice(0, 12));
+
+  const prompt = await client.get(uri);
+  console.log(prompt.template);
+  client.close();
+}
+
+main();
+`}</Cmd>
+
+```text title="Output"
+published bd21c009cf92
+Bye {name}, see you soon!
+```
+
+Publishing the content that `main` already serves changes nothing and sends no event. With authentication on, `publish()` needs a token with the `rw` grant. To publish to a branch or add a commit message, call `PublishPrompt` through the stubs.
+
+## Preview a change
+
+`diff()` compares the stored version with a draft you haven't published. The server returns one change per edited region, with a [semantic verdict](../concepts/semantic-diff.md):
+
+<Cmd lang="js">{`
+const { PromptClient } = require("{{npmName}}");
+
+async function main() {
+  const client = new PromptClient({ host: "localhost:8443" });
+  const uri = "priompt://acme/support/agent";
+
+  const { template } = await client.get(uri);
+  const draft = template.replace("over $100", "over $500");
+  const { changes } = await client.diff(uri, draft);
+
+  for (const c of changes) console.log(c.kind, c.old_start, c.old_end, c.classification);
+  client.close();
+}
+
+main();
+`}</Cmd>
+
+```text title="Output"
+replace 2 3 minor edit
+```
+
+Line ranges are zero-based and half-open, so `2 3` is the third line of the stored prompt.
+
+## Pin a version
+
+Pass a branch name or a full 64-character commit hash as the second argument to `get()`:
+
+<Cmd lang="js">{`
+const { PromptClient } = require("{{npmName}}");
+
+async function main() {
+  const client = new PromptClient({ host: "localhost:8443" });
+  const uri = "priompt://acme/support/agent";
+
+  const pinned = await client.get(uri, "<commit-hash>");
+  console.log(pinned.version_hash.slice(0, 12), pinned.commit_hash.slice(0, 12));
+  client.close();
+}
+
+main();
+`}</Cmd>
+
+```text title="Output"
+39aca0f587be 55da8f98c017
+```
+
+Replace `<commit-hash>` with a hash from the prompt's history (see [Call other RPCs](#call-other-rpcs)). A shortened hash returns `NOT_FOUND`. For the full workflow, see [Branch, pin, and roll back a prompt](../guides/branch-pin-rollback.mdx).
+
+## Subscribe to changes
+
+`subscribe()` calls your function whenever the served version of a prompt changes. It resolves to the NATS connection, which you close when you're done. The server's broker listens on `127.0.0.1:4222` by default.
+
+<Cmd lang="js">{`
+const { PromptClient } = require("{{npmName}}");
+
+async function main() {
+  const client = new PromptClient({
+    host: "localhost:8443",
+    natsUrl: "nats://127.0.0.1:4222",
+  });
+  const uri = "priompt://acme/support/agent";
+
+  const nc = await client.subscribe(uri, async (version, classification) => {
+    console.log("changed:", version.slice(0, 12), classification || "(no verdict)");
+    const prompt = await client.get(uri);
+    console.log("now serving:", prompt.version_hash.slice(0, 12));
+    await nc.close();
+    client.close();
+  });
+  console.log("subscribed");
+}
+
+main();
+`}</Cmd>
+
+While the script waits, publish an edited version from another terminal:
+
+```sh
+priompt publish -uri priompt://acme/support/agent -file agent-v2.txt -slot org
+```
+
+```text title="Output"
+subscribed
+changed: 25651f0630b7 minor edit
+now serving: 25651f0630b7
+```
+
+The event carries the new version hash and the semantic verdict: `structural`, `localized tweak`, `minor edit`, `new`, or an empty string when the server couldn't classify the change. Fetch the prompt again with `get()` to load it. Events fire when `main` moves through a publish or a rollback. To decide which verdicts your service reloads on its own, see [Hot-reload prompts safely](../guides/hot-reload.mdx).
+
+## Connect over TLS or mTLS
+
+For a server started with `-tls-cert` and `-tls-key`, set `tls: true` and point `caCert` at the CA that signed the server's certificate. For a server that also has `-client-ca`, add a client certificate and key:
+
+<Cmd lang="js">{`
+const { PromptClient } = require("{{npmName}}");
+
+async function main() {
+  const client = new PromptClient({
+    host: "prompts.example.com:8443",
+    token: "<token>",
+    tls: true,
+    caCert: "ca.pem",
+    clientCert: "client.pem",
+    clientKey: "client.key",
+  });
+  console.log((await client.get("priompt://acme/onboarding/welcome")).template);
+  client.close();
+}
+
+main();
+`}</Cmd>
+
+```text title="Output"
+Hi {name}, welcome to {org}!
+```
+
+All three are file paths. Omit `clientCert` and `clientKey` for plain TLS. To create the certificates, see [Secure a server](../operations/security.md).
+
+## Handle errors
+
+A failed call rejects with an error whose `code` is the numeric gRPC status and whose `details` is the server's message:
+
+<Cmd lang="js">{`
+const { PromptClient } = require("{{npmName}}");
+
+async function main() {
+  const client = new PromptClient({ host: "localhost:8443" });
+  try {
+    await client.publish("priompt://acme/support/greeting", "Hi {name}!", []);
+  } catch (err) {
+    console.log(err.code, err.details);
+  }
+  client.close();
+}
+
+main();
+`}</Cmd>
+
+```text title="Output"
+3 invalid prompt: template uses undeclared slots: name
+```
+
+Code `3` is `INVALID_ARGUMENT`. The codes you meet most are `5` (`NOT_FOUND`), `7` (`PERMISSION_DENIED`, for example `token is read-only`), and `16` (`UNAUTHENTICATED`). [Errors](../reference/errors.md) lists every code with its cause and fix.
+
+## Call other RPCs
+
+The package ships the contract at `proto/priompt/v1/prompt.proto`. Load it with `@grpc/proto-loader` to call RPCs the client doesn't wrap, such as `History`. Install the two gRPC packages in your app first:
+
+```sh
+npm i @grpc/grpc-js @grpc/proto-loader
+```
+
+<Cmd lang="js">{`
+const path = require("path");
+const grpc = require("@grpc/grpc-js");
+const protoLoader = require("@grpc/proto-loader");
+
+const dir = path.dirname(require.resolve("{{npmName}}"));
+const def = protoLoader.loadSync(path.join(dir, "proto/priompt/v1/prompt.proto"), {
+  keepCase: true,
+  defaults: true,
+});
+const { PromptService } = grpc.loadPackageDefinition(def).priompt.v1;
+const stub = new PromptService("localhost:8443", grpc.credentials.createInsecure());
+
+stub.History({ uri: "priompt://acme/support/agent" }, (err, res) => {
+  if (err) throw err;
+  for (const c of res.commits) console.log(c.hash.slice(0, 12), c.version_hash.slice(0, 12), c.author);
+  stub.close();
+});
+`}</Cmd>
+
+```text title="Output"
+eabece1585ed 25651f0630b7 anonymous
+25f17922eadb bd45a4721079 anonymous
+43b10961f033 25651f0630b7 anonymous
+55da8f98c017 39aca0f587be anonymous
+```
+
+Commits are listed newest first. With authentication on, pass a `grpc.Metadata` holding `authorization: Bearer <token>` as the second argument of each call.
+
+## Next steps
+
+- [Hot-reload prompts safely](../guides/hot-reload.mdx): decide which changes your service picks up on its own.
+- [Branch, pin, and roll back a prompt](../guides/branch-pin-rollback.mdx): test a change before it's served.
+- [gRPC API](../reference/grpc-api.md): every RPC and message.
+- [Python SDK](./python.mdx): the same tasks from Python, plus `list()` and a local cache.

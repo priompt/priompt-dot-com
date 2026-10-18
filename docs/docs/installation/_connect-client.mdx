@@ -1,0 +1,59 @@
+Both SDKs read `PRIOMPT_URL` when you create a client without arguments, so the same variable connects your agents.
+
+<Tabs groupId="lang">
+<TabItem value="py" label="Python" default>
+
+To fetch the prompt from Python:
+
+1. Install the SDK:
+
+   <Cmd lang="sh">{`pip install {{pypiName}}`}</Cmd>
+
+2. Save this script as `connect.py`:
+
+   ```python title="connect.py"
+   from priompt_sdk import PromptClient
+
+   client = PromptClient()  # reads PRIOMPT_URL
+   prompt = client.get("priompt://acme/onboarding/welcome")
+   print(prompt.template)
+   ```
+
+3. Run it with `python connect.py`.
+
+   ```text title="Output"
+   Hi {name}, welcome to {org}!
+   ```
+
+</TabItem>
+<TabItem value="js" label="Node">
+
+To fetch the prompt from Node:
+
+1. Install the SDK:
+
+   <Cmd lang="sh">{`npm install {{npmName}}`}</Cmd>
+
+2. Save this script as `connect.js`:
+
+   <Cmd lang="js" title="connect.js">{[
+     'const { PromptClient } = require("{{npmName}}");',
+     '',
+     'async function main() {',
+     '  const client = new PromptClient(); // reads PRIOMPT_URL',
+     '  const prompt = await client.get("priompt://acme/onboarding/welcome");',
+     '  console.log(prompt.template);',
+     '  client.close();',
+     '}',
+     '',
+     'main();',
+   ].join("\n")}</Cmd>
+
+3. Run it with `node connect.js`.
+
+   ```text title="Output"
+   Hi {name}, welcome to {org}!
+   ```
+
+</TabItem>
+</Tabs>

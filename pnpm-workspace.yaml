@@ -1,7 +1,9 @@
-packages: []
+packages:
+  - docs
 
 allowBuilds:
   sharp: true
   unrs-resolver: true
   msw: false
   esbuild: true
+  core-js: false

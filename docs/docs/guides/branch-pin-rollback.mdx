@@ -1,0 +1,397 @@
+---
+title: Branch, pin, and roll back a prompt
+sidebar_label: Branch and roll back
+description: Work on a prompt in a branch without serving it, pin a version, merge it into main, and roll main back to an earlier commit.
+doc_type: how-to
+---
+
+This guide takes one prompt through a full change cycle on the server: branch, publish to the branch, pin, merge, and roll back. Agents that read the served HEAD (`main`) see nothing until you merge, and a rollback puts the old version back for every agent at once.
+
+The [versioning concept page](../concepts/versioning.md) explains commits, branches, and the served HEAD.
+
+## Prerequisites
+
+Before you begin, make sure you have:
+
+- **A running Priompt server** on `localhost:8443`. See the [Quickstart](../quickstart.mdx).
+- **An `rw` token**, if the server has authentication on. See [Secure a server](../operations/security.md).
+- **A client** for the tab you pick:
+  - Python: `pip install` <Var name="pypiName" />.
+  - Node: `npm install` <Var name="npmName" />.
+  - grpcurl: [grpcurl](https://github.com/fullstorydev/grpcurl) and a copy of `prompt.proto`. The server doesn't enable gRPC reflection.
+
+:::info SDK coverage
+`PromptClient` in both SDKs wraps `GetPrompt`, including pinned reads, but not the branch RPCs. The examples call `History`, `CreateBranch`, `PublishPrompt` on a branch, `MergeBranch`, and `SetBranch` through the generated stubs that ship with each SDK.
+:::
+
+## 1. Connect
+
+Create a shared setup file. Each later step imports it.
+
+<Tabs groupId="lang">
+<TabItem value="py" label="Python">
+
+```python title="common.py"
+import grpc
+from priompt_sdk import PromptClient
+from priompt_sdk.v1 import prompt_pb2 as pb, prompt_pb2_grpc as rpc
+
+HOST = "localhost:8443"
+URI = "priompt://acme/support/agent"
+md = None  # [("authorization", "Bearer <token>")] when auth is on
+
+client = PromptClient(host=HOST)  # token="<token>" when auth is on
+stub = rpc.PromptServiceStub(grpc.insecure_channel(HOST))
+```
+
+</TabItem>
+<TabItem value="js" label="Node">
+
+<Cmd lang="js" title="common.js">{`const grpc = require("@grpc/grpc-js");
+const loader = require("@grpc/proto-loader");
+const { PromptClient } = require("{{npmName}}");
+
+const HOST = "localhost:8443";
+const URI = "priompt://acme/support/agent";
+
+// The package ships prompt.proto. Load it to call the RPCs PromptClient doesn't wrap.
+const proto = require.resolve("{{npmName}}/proto/priompt/v1/prompt.proto");
+const { PromptService } = grpc.loadPackageDefinition(
+  loader.loadSync(proto, { keepCase: true, defaults: true })).priompt.v1;
+const stub = new PromptService(HOST, grpc.credentials.createInsecure());
+const md = new grpc.Metadata(); // md.add("authorization", "Bearer <token>")
+const call = (rpc, req) => new Promise((resolve, reject) =>
+  stub[rpc](req, md, (err, res) => (err ? reject(err) : resolve(res))));
+
+const client = new PromptClient({ host: HOST }); // token: "<token>"
+module.exports = { call, client, URI };`}</Cmd>
+
+</TabItem>
+<TabItem value="grpc" label="grpcurl">
+
+```sh
+curl -sSLO https://raw.githubusercontent.com/priompt/proto/main/proto/priompt/v1/prompt.proto
+G="grpcurl -plaintext -proto prompt.proto"
+S=priompt.v1.PromptService
+```
+
+With authentication on, add `-H "authorization: Bearer <token>"` to each command. grpcurl prints each response as JSON with full hashes. The **Output** blocks on this page show the Python and Node output.
+
+</TabItem>
+</Tabs>
+
+`<token>` is an `rw` token for the `acme` org.
+
+## 2. Publish two versions
+
+Give the prompt some history on `main`:
+
+```sh
+printf 'You are a support agent for {org}. Be concise and kind.' > v1.txt
+printf 'You are a support agent for {org}. Be concise and kind. Offer a refund when reasonable.' > v2.txt
+priompt publish -uri priompt://acme/support/agent -file v1.txt -slot org
+priompt publish -uri priompt://acme/support/agent -file v2.txt -slot org
+```
+
+```text title="Output"
+published priompt://acme/support/agent (1024719f5bbe) — subscribers notified
+published priompt://acme/support/agent (b436dfe49b72) — subscribers notified
+```
+
+## 3. Find a commit
+
+`History` lists the commits on a branch, newest first.
+
+<Tabs groupId="lang">
+<TabItem value="py" label="Python">
+
+```python title="history.py"
+from common import *
+
+commits = stub.History(pb.HistoryRequest(uri=URI, branch="main"), metadata=md).commits
+for c in commits:
+    print(c.hash[:12], c.message or "(no message)")
+```
+
+</TabItem>
+<TabItem value="js" label="Node">
+
+```js title="history.js"
+const { call, URI } = require("./common");
+
+async function main() {
+  const { commits } = await call("History", { uri: URI, branch: "main" });
+  for (const c of commits) console.log(c.hash.slice(0, 12), c.message || "(no message)");
+}
+main();
+```
+
+</TabItem>
+<TabItem value="grpc" label="grpcurl">
+
+```sh
+$G -d '{"uri":"priompt://acme/support/agent","branch":"main"}' localhost:8443 $S/History
+```
+
+Each commit has its full `hash`, `versionHash`, `parent`, `author`, and `createdAt`.
+
+</TabItem>
+</Tabs>
+
+```text title="Output"
+c74e161b5a01 (no message)
+3514468e2381 (no message)
+```
+
+Commit hashes don't include a timestamp. On a fresh server without authentication, you get the same hashes as this guide.
+
+## 4. Create a branch
+
+`CreateBranch` starts a branch at the tip of another branch.
+
+<Tabs groupId="lang">
+<TabItem value="py" label="Python">
+
+```python title="branch.py"
+from common import *
+
+r = stub.CreateBranch(pb.CreateBranchRequest(uri=URI, name="feat", **{"from": "main"}), metadata=md)
+print("feat starts at", r.commit_hash[:12])
+```
+
+`from` is a Python keyword, so pass it with `**{"from": "main"}`.
+
+</TabItem>
+<TabItem value="js" label="Node">
+
+```js title="branch.js"
+const { call, URI } = require("./common");
+
+async function main() {
+  const r = await call("CreateBranch", { uri: URI, name: "feat", from: "main" });
+  console.log("feat starts at", r.commit_hash.slice(0, 12));
+}
+main();
+```
+
+</TabItem>
+<TabItem value="grpc" label="grpcurl">
+
+```sh
+$G -d '{"uri":"priompt://acme/support/agent","name":"feat","from":"main"}' localhost:8443 $S/CreateBranch
+```
+
+</TabItem>
+</Tabs>
+
+```text title="Output"
+feat starts at c74e161b5a01
+```
+
+## 5. Publish to the branch
+
+A publish with `branch` set records a commit on that branch. It doesn't change what agents are served, and it doesn't notify subscribers.
+
+<Tabs groupId="lang">
+<TabItem value="py" label="Python">
+
+```python title="publish_branch.py"
+from common import *
+
+r = stub.PublishPrompt(pb.PublishPromptRequest(
+    uri=URI, branch="feat", slots=["org"], message="ask for the order number",
+    template="You are a support agent for {org}. Ask for the order number first."),
+    metadata=md)
+print("feat version", r.version_hash[:12])
+print("main serves:", client.get(URI).template)
+```
+
+</TabItem>
+<TabItem value="js" label="Node">
+
+```js title="publish_branch.js"
+const { call, client, URI } = require("./common");
+
+async function main() {
+  const r = await call("PublishPrompt", {
+    uri: URI, branch: "feat", slots: ["org"], message: "ask for the order number",
+    template: "You are a support agent for {org}. Ask for the order number first.",
+  });
+  console.log("feat version", r.version_hash.slice(0, 12));
+  console.log("main serves:", (await client.get(URI)).template);
+}
+main();
+```
+
+</TabItem>
+<TabItem value="grpc" label="grpcurl">
+
+```sh
+$G -d '{"uri":"priompt://acme/support/agent","branch":"feat","slots":["org"],"message":"ask for the order number","template":"You are a support agent for {org}. Ask for the order number first."}' localhost:8443 $S/PublishPrompt
+$G -d '{"uri":"priompt://acme/support/agent"}' localhost:8443 $S/GetPrompt
+```
+
+</TabItem>
+</Tabs>
+
+```text title="Output"
+feat version 4137353438f2
+main serves: You are a support agent for {org}. Be concise and kind. Offer a refund when reasonable.
+```
+
+## 6. Pin a version
+
+Pass a `ref` to read a branch tip or a commit instead of the served HEAD. A pinned read returns the `commit_hash`, which you can store and pin to later. Pinned reads skip the cache.
+
+<Tabs groupId="lang">
+<TabItem value="py" label="Python">
+
+```python title="pin.py"
+from common import *
+
+p = client.get(URI, ref="feat")
+print(p.template)
+print("commit", p.commit_hash)
+```
+
+</TabItem>
+<TabItem value="js" label="Node">
+
+```js title="pin.js"
+const { client, URI } = require("./common");
+
+async function main() {
+  const p = await client.get(URI, "feat");
+  console.log(p.template);
+  console.log("commit", p.commit_hash);
+}
+main();
+```
+
+</TabItem>
+<TabItem value="grpc" label="grpcurl">
+
+```sh
+$G -d '{"uri":"priompt://acme/support/agent","ref":"feat"}' localhost:8443 $S/GetPrompt
+```
+
+</TabItem>
+</Tabs>
+
+```text title="Output"
+You are a support agent for {org}. Ask for the order number first.
+commit c43d538ff5189f9864cbf7f2301270568ad46e37981f2d70d3431cff1d40ad83
+```
+
+A `ref` must be a branch name or a full 64-character commit hash. A shortened hash returns `NOT_FOUND`.
+
+## 7. Merge into main
+
+`MergeBranch` records a merge commit on `main` with the source branch's content. The served HEAD changes and the server cache is cleared.
+
+<Tabs groupId="lang">
+<TabItem value="py" label="Python">
+
+```python title="merge.py"
+from common import *
+
+r = stub.MergeBranch(pb.MergeBranchRequest(
+    uri=URI, into="main", message="ship the order-number rule", **{"from": "feat"}),
+    metadata=md)
+print("merge commit", r.commit_hash[:12])
+print("main serves:", client.get(URI).template)
+```
+
+</TabItem>
+<TabItem value="js" label="Node">
+
+```js title="merge.js"
+const { call, client, URI } = require("./common");
+
+async function main() {
+  const r = await call("MergeBranch", {
+    uri: URI, into: "main", from: "feat", message: "ship the order-number rule",
+  });
+  console.log("merge commit", r.commit_hash.slice(0, 12));
+  console.log("main serves:", (await client.get(URI)).template);
+}
+main();
+```
+
+</TabItem>
+<TabItem value="grpc" label="grpcurl">
+
+```sh
+$G -d '{"uri":"priompt://acme/support/agent","into":"main","from":"feat","message":"ship the order-number rule"}' localhost:8443 $S/MergeBranch
+```
+
+</TabItem>
+</Tabs>
+
+```text title="Output"
+merge commit 0cd1e53a2a7a
+main serves: You are a support agent for {org}. Ask for the order number first.
+```
+
+:::note
+In v0.7.2, a merge into `main` doesn't send a change event. Subscribed agents pick up the merged version on their next fetch, or when their cache TTL expires. A publish or a rollback on `main` does send one.
+:::
+
+## 8. Roll back
+
+`SetBranch` points `main` at an earlier commit. Every agent gets that version on its next read, and subscribers receive a change event with a verdict. Nothing is deleted: the merge commit still exists and you can still pin it by hash.
+
+<Tabs groupId="lang">
+<TabItem value="py" label="Python">
+
+```python title="rollback.py"
+from common import *
+
+GOOD = "c74e161b5a01"  # the commit to go back to, from History
+commits = stub.History(pb.HistoryRequest(uri=URI), metadata=md).commits
+full = next(c.hash for c in commits if c.hash.startswith(GOOD))
+r = stub.SetBranch(pb.SetBranchRequest(uri=URI, branch="main", commit_hash=full), metadata=md)
+print("main serves version", r.version_hash[:12])
+print(client.get(URI).template)
+```
+
+</TabItem>
+<TabItem value="js" label="Node">
+
+```js title="rollback.js"
+const { call, client, URI } = require("./common");
+
+const GOOD = "c74e161b5a01"; // the commit to go back to, from History
+
+async function main() {
+  const { commits } = await call("History", { uri: URI });
+  const full = commits.find((c) => c.hash.startsWith(GOOD)).hash;
+  const r = await call("SetBranch", { uri: URI, branch: "main", commit_hash: full });
+  console.log("main serves version", r.version_hash.slice(0, 12));
+  console.log((await client.get(URI)).template);
+}
+main();
+```
+
+</TabItem>
+<TabItem value="grpc" label="grpcurl">
+
+```sh
+$G -d '{"uri":"priompt://acme/support/agent","branch":"main","commitHash":"c74e161b5a01f7a54e10f8d36cd69c102d264ff8c3b374bd3ab67f0308eeb13c"}' localhost:8443 $S/SetBranch
+```
+
+</TabItem>
+</Tabs>
+
+```text title="Output"
+main serves version b436dfe49b72
+You are a support agent for {org}. Be concise and kind. Offer a refund when reasonable.
+```
+
+`SetBranch` needs the full commit hash, so the Python and Node examples look it up from `History` by prefix. After the rollback, `History` on `main` walks back from the new tip, so it lists `c74e161b5a01` and `3514468e2381` again.
+
+## Next steps
+
+- [A/B test a prompt](./ab-test.mdx): serve a branch to one cohort and `main` to the rest.
+- [Hot-reload prompts safely](./hot-reload.mdx): decide what an agent does when it gets a change event.
+- [gRPC API](../reference/grpc-api.md): every field of `CreateBranch`, `MergeBranch`, and `SetBranch`.

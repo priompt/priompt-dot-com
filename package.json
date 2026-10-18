@@ -10,7 +10,10 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "preview": "next build && npx serve out"
+    "preview": "next build && npx serve out",
+    "docs:dev": "pnpm --filter priompt-docs start",
+    "docs:build": "pnpm --filter priompt-docs build",
+    "docs:serve": "pnpm --filter priompt-docs serve"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

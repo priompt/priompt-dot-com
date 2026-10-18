@@ -1,0 +1,58 @@
+---
+title: Changelog
+sidebar_label: Changelog
+description: "What changed in each Priompt release."
+doc_type: reference
+---
+
+This page lists the changes in each Priompt release, newest first. Version numbers follow the server repository (`github.com/priompt/priompt`); the other repositories have their own tags, listed with the release they shipped in.
+
+## Unreleased
+
+- **Dev seed script**: `seed-dev.sh` in the server repository runs on Linux and macOS and from any directory. It uses the `priompt` or `priompt.exe` binary next to it, else `priompt` on the `PATH`.
+
+## v0.7.2
+
+Released 2026-10-17.
+
+- **Version reporting**: A binary built with `go install github.com/priompt/priompt/cmd/priompt@v0.7.2` reports its module version in `priompt version` and in the startup log line. A `go build` in a checkout reports the git commit. Release builds still stamp both through `-ldflags`. In v0.7.1, `go install` builds reported `dev`.
+
+## v0.7.1
+
+Released 2026-10-17.
+
+- **Public Go modules**: The server is published as `github.com/priompt/priompt` and requires the published modules, with no `replace` directives. `go install github.com/priompt/priompt/cmd/priompt@latest` works without a clone.
+- **Module releases**: These modules were tagged `v0.7.0` the same day, under their public paths:
+  - `github.com/priompt/proto`: the gRPC contract, the JWT claims, validation, and the semantic diff.
+  - `github.com/priompt/db-adapters`: the SQLite and PostgreSQL storage engine.
+  - `github.com/priompt/auth`: `priompt-auth` and the `authn` package the server uses.
+  - `github.com/priompt/cli`: `promptctl`.
+
+## v0.7.0
+
+Released 2026-10-17. The first tagged server release, and the first published container image.
+
+- **Container image**: Tagging `v*` publishes <Var name="dockerImage" /> for `linux/amd64` and `linux/arm64`, with provenance and an SBOM. The release runs only after the test workflow passes.
+- **Build info**: New `priompt version` command. `serve` logs its version and commit at startup, and the metrics endpoint exposes `priompt_build_info{version,commit,goversion}`.
+- **Server-side versioning**: Each prompt has a commit history with branches, merges, history, commit diffs, pinning by ref, and rollback. Change events carry the semantic diff verdict.
+- **License**: The server and both SDKs are licensed under Apache-2.0.
+
+The client SDKs were prepared for their registries in the same cycle:
+
+- **Python SDK** `0.7.0`: published as <Var name="pypiName" />. It imports as `priompt_sdk`.
+- **Node SDK** `0.1.0`: published as <Var name="npmName" />.
+
+## Earlier versions
+
+Versions before v0.7.0 weren't tagged. They added these features:
+
+| Version | Added |
+| --- | --- |
+| v0.6 | Token expiry and rotation, mTLS, Prometheus metrics and the audit log, per-org rate limits, backup and restore, schema migrations. |
+| v0.5 | PostgreSQL storage, the shared Redis cache, and org-scoped tokens. |
+| v0.4 | Change events over embedded NATS, and TTL sync for subscribers. |
+| v0.3 | `promptctl`: `commit`, `diff`, `log`, `promote`, `push`, and `pull`. |
+| v0.2 | Client (L1) and server (L2) caches with a TTL, keyed on the version hash. |
+| v0.1 | The gRPC server, the Python client, and prompt validation. |
+
+For what's planned next, see [Status and roadmap](../roadmap.md).

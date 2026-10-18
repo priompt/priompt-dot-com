@@ -50,6 +50,20 @@ Deployment runs through Cloudflare Pages' Git integration:
 > `/cdn-cgi/image/` transformation endpoint (requires "Transformations" enabled
 > on the zone).
 
+## Docs (`docs/`)
+
+Product documentation is a separate Docusaurus site in `docs/` (a pnpm
+workspace package), built to static files and meant for `docs.priompt.com`.
+
+```bash
+pnpm docs:dev     # http://localhost:3000
+pnpm docs:build   # -> docs/build (deploy as static assets / Pages)
+```
+
+Unreleased names (Docker image, PyPI and npm packages) live in
+`docs/src/vars.ts` and render through `<Var>` / `<Cmd>`. Set them there, or via
+`PRIOMPT_DOCKER_IMAGE` / `PRIOMPT_PYPI_NAME` / `PRIOMPT_NPM_NAME` at build time.
+
 ## Adding UI components
 
 ```bash
