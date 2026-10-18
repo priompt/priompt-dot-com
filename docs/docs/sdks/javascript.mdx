@@ -252,7 +252,7 @@ The event carries the new version hash and the semantic verdict: `structural`, `
 :::note Version 0.1.1
 `@priompt/client` 0.1.1 changes the following:
 
-- **Subjects**: it computes the subject the way a v0.7.3 server does. Use 0.1.1 or later with a v0.7.3 server if your addresses contain `.` or other punctuation, and 0.1.0 with older servers.
+- **Subjects**: it computes the subject the way a v0.7.3 server does. Use 0.1.1 or later with a v0.7.3 or later server if your addresses contain `.` or other punctuation, and 0.1.0 with older servers.
 - **Token**: it reads `PRIOMPT_TOKEN`. The order is the `token` option, then `PRIOMPT_TOKEN`, then the token in `url` or `PRIOMPT_URL`.
 - **Wrong broker token**: `subscribe()` rejects within moments with `NATS broker rejected the connection: Authorization Violation (check natsToken or the token in natsUrl)`. Version 0.1.0 rejects with `TIMEOUT` after about 20 seconds.
 - **Dependency**: `subscribe()` uses the optional dependency `@nats-io/transport-node` instead of the deprecated `nats` package, so the install shows no deprecation warning.

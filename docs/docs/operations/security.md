@@ -165,7 +165,7 @@ To serve over TLS:
    ```
 
    ```text title="Output"
-   2026/10/18 06:10:50 priompt v0.7.3 (unknown) serving on :8443 (tls=true mtls=true auth=1-token cache=mem embed=lexical(offline) nats=127.0.0.1:4222 metrics=:2112 ratelimit=0/s)
+   2026/10/18 06:10:50 priompt v0.7.4 (unknown) serving on :8443 (tls=true mtls=true auth=1-token cache=mem embed=lexical(offline) nats=127.0.0.1:4222 metrics=:2112 ratelimit=0/s)
    ```
 
    Pass both `-tls-cert` and `-tls-key`. With only `-tls-cert`, the server serves plaintext, even though its startup line says `tls=true`. `-client-ca` without them stops the server with `-client-ca requires -tls-cert and -tls-key`.
@@ -221,7 +221,7 @@ The broker accepts two kinds of credential:
 A wrong token fails with `nats: Authorization Violation`. A subscription outside the token's org fails with `Permissions Violation for Subscription to "priompt.<org>...."`. Requires v0.7.3 or later; earlier versions accept only the broker token, which gives every holder full rights.
 
 :::note
-A subscription that's already open stays open after its token is revoked or expires. To cut off a subscriber, remove its token and restart the server.
+From v0.7.4, the broker closes a subscriber's connection when its API token or JWT expires, with the error `User Authentication Expired`; the client must reconnect with a valid token. Removing a token from the tokens file takes effect when the server restarts, which also closes open connections. In v0.7.3, an open subscription stays open after its token expires.
 :::
 
 ## Encrypt data at rest

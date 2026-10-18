@@ -38,10 +38,6 @@ To open a prompt's branches:
 
    A banner confirms **Created dev from main.**, and `dev` appears in the branch list.
 
-:::note
-The server has no call that lists a prompt's branches yet, so the list checks for `main`, `dev`, `staging`, and `prod` by name. To show a branch with another name, enter it in **Show another branch**, or add `?branch=<name>` to the page's URL. After you create such a branch, the banner links to it. Listing every branch automatically is tracked in [priompt#45](https://github.com/priompt/priompt/issues/45).
-:::
-
 ## 3. Commit a change to dev
 
 Edits on `dev` don't change what agents get from `main`.
@@ -55,7 +51,7 @@ To commit to `dev`:
 
    The **Branches** tab now shows your message as the latest commit on `dev`.
 
-   ![Branches view for onboarding/welcome.prompt with main (default, serving) and the new dev branch highlighted, with its Compare and Merge into main buttons, and the Show another branch field below.](/img/ui/10-branches.png)
+   ![Branches view for onboarding/welcome.prompt with main (default, serving) and the new dev branch highlighted, with its Compare and Merge into main buttons.](/img/ui/10-branches.png)
 
    *Each branch shows its latest commit message and author.*
 
@@ -99,9 +95,9 @@ Rolling back points `main` at an earlier commit. Nothing is deleted, and agents 
 1. Under **Rollback**, find the commit you want `main` to serve.
 2. Select **Roll back to here** on that row.
 
-   ![Rollback list after a rollback: commit 06100c3 marked current, Roll forward to here on the two newer commits from dev and staging, and Roll back to here on the three older commits.](/img/ui/14-rollback.png)
+   ![Rollback list after a rollback: commit 06100c3 marked current, Roll forward to here on the three newer commits (the merge, the promotion to staging, and the change from dev), and Roll back to here on the three older commits.](/img/ui/14-rollback.png)
 
-   *`main` points at `06100c3` again, the commit before the change from `dev`. The newer commits can still be rolled forward to.*
+   *`main` points at `06100c3` again, the commit before the change from `dev`. The newer commits, including the merge commit, can still be rolled forward to.*
 
    A banner confirms that `main` now points at the commit, with **Undo: move main back to `<commit>`** to return `main` to where it was.
 

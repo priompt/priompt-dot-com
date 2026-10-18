@@ -7,6 +7,27 @@ doc_type: reference
 
 This page lists the changes in each Priompt release, newest first. Version numbers follow the server repository (`github.com/priompt/priompt`); the other repositories have their own tags, listed with the release they shipped in.
 
+## v0.7.4
+
+Released 2026-10-19. Ships with `proto`, `db-adapters`, `auth`, and `cli` v0.7.2. The SDKs are unchanged.
+
+**Server**
+
+- **`ListBranches` and `ListCommits`**: list every branch of a prompt and its tip, and every commit, including commits a rollback left off every branch ([#45](https://github.com/priompt/priompt/issues/45)). See [gRPC API](./grpc-api.md#listbranches).
+- **Expired NATS tokens**: the broker closes a subscriber's connection when its API token or JWT expires ([#47](https://github.com/priompt/priompt/issues/47)). See [Security](/operations/security).
+
+**Modules**
+
+- **`cli` v0.7.2 (`promptctl`)**: `diff` skips prompts that differ from the ref only in line endings, instead of printing `no changes` ([cli#11](https://github.com/priompt/cli/issues/11)).
+- **`auth` v0.7.2**: `authn.Identity` carries the credential's expiry.
+- **`proto` and `db-adapters` v0.7.2**: the two new RPCs and their store queries.
+
+**Web UI** (from the `ui` repository's `main`; needs server v0.7.4)
+
+- The **Branches** tab lists every branch of the prompt, and **Show another branch** is gone ([ui#7](https://github.com/priompt/ui/issues/7)).
+- The Rollback list shows every commit of the prompt, so you can roll forward to any of them ([ui#8](https://github.com/priompt/ui/issues/8)).
+- A production build (`pnpm build`) finds the proto file ([ui#20](https://github.com/priompt/ui/issues/20)).
+
 ## v0.7.3
 
 Released 2026-10-18. Ships with `proto`, `db-adapters`, `auth`, and `cli` v0.7.1, `priompt-sdk` 0.7.1, and `@priompt/client` 0.1.1.

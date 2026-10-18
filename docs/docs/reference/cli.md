@@ -101,7 +101,7 @@ PRIOMPT_TOKEN=<token> priompt serve
 
 ```text title="Output"
 2026/10/18 04:42:32 seeded demo prompt priompt://acme/onboarding/welcome
-2026/10/18 04:42:33 priompt v0.7.3 (b917a28eac1eab73904841432d8cfa8da1ea4618) serving on :8443 (tls=false mtls=false auth=1-token cache=mem embed=lexical(offline) nats=127.0.0.1:4222 metrics=:2112 ratelimit=0/s)
+2026/10/18 04:42:33 priompt v0.7.4 (b9072abfc4b0fb10f8e42ac1316fd4ea12462797) serving on :8443 (tls=false mtls=false auth=1-token cache=mem embed=lexical(offline) nats=127.0.0.1:4222 metrics=:2112 ratelimit=0/s)
 2026/10/18 04:42:33 metrics on :2112/metrics
 ```
 
@@ -404,7 +404,7 @@ priompt version
 ```
 
 ```text title="Output"
-priompt v0.7.3 (commit unknown, go1.26.4)
+priompt v0.7.4 (commit unknown, go1.26.4)
 ```
 
 A binary from `go install` reports the module version. A `go build` inside a checkout reports the git commit, and release images report both.
