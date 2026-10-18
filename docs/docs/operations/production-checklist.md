@@ -81,7 +81,7 @@ priompt serve \
 
 ```text title="Output"
 2026/10/18 10:20:22 metrics on 127.0.0.1:2112/metrics
-2026/10/18 10:20:22 priompt v0.7.3 (unknown) serving on :8443 (tls=true mtls=false auth=1-token cache=redis embed=BAAI/bge-small-en-v1.5@http://tei/v1/embeddings nats=0.0.0.0:4222 metrics=127.0.0.1:2112 ratelimit=50/s)
+2026/10/18 10:20:22 priompt v0.7.4 (unknown) serving on :8443 (tls=true mtls=false auth=1-token cache=redis embed=BAAI/bge-small-en-v1.5@http://tei/v1/embeddings nats=0.0.0.0:4222 metrics=127.0.0.1:2112 ratelimit=50/s)
 ```
 
 Replace the placeholders:
@@ -123,7 +123,7 @@ To check the running server:
    ```text title="Output"
    # HELP priompt_build_info Always 1; labels identify the running build.
    # TYPE priompt_build_info gauge
-   priompt_build_info{commit="unknown",goversion="go1.26.4",version="v0.7.3"} 1
+   priompt_build_info{commit="unknown",goversion="go1.26.4",version="v0.7.4"} 1
    ```
 
 ## Next steps

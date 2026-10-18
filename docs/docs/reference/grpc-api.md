@@ -5,7 +5,7 @@ description: "Every PromptService RPC with its request and response fields, auth
 doc_type: reference
 ---
 
-The Priompt server exposes one gRPC service, `priompt.v1.PromptService`, defined in `proto/priompt/v1/prompt.proto` in the `proto` repository. The SDKs, the CLIs, and the web UI all call these nine RPCs.
+The Priompt server exposes one gRPC service, `priompt.v1.PromptService`, defined in `proto/priompt/v1/prompt.proto` in the `proto` repository. The SDKs, the CLIs, and the web UI all call these eleven RPCs.
 
 ## RPCs
 
@@ -16,6 +16,8 @@ The Priompt server exposes one gRPC service, `priompt.v1.PromptService`, defined
 | [`DiffPrompt`](#diffprompt) | No | Semantic diff of the served version against an edited template. |
 | [`PublishPrompt`](#publishprompt) | Yes | Validate and commit a new version to a branch. |
 | [`History`](#history) | No | Commit log of a branch, newest first. |
+| [`ListBranches`](#listbranches) | No | Every branch of a prompt and its tip. |
+| [`ListCommits`](#listcommits) | No | Every commit of a prompt, including commits no branch reaches. |
 | [`CreateBranch`](#createbranch) | Yes | Create a branch at another branch's tip. |
 | [`MergeBranch`](#mergebranch) | Yes | Merge one branch into another with a merge commit. |
 | [`DiffCommits`](#diffcommits) | No | Semantic diff between any two commits. |
@@ -262,6 +264,96 @@ call History '{"uri":"priompt://acme/support/agent"}'
       "author": "anonymous",
       "message": "first version",
       "createdAt": "2026-10-18T04:45:11.3913954Z"
+    }
+  ]
+}
+```
+
+## ListBranches
+
+Returns every branch of a prompt and the commit it points at, sorted by name. Requires v0.7.4 or later.
+
+**Request**: `ListBranchesRequest`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `uri` | `string` | Prompt address. |
+
+**Response**: `ListBranchesResponse` with `branches`, a list of `Branch`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `name` | `string` | Branch name. |
+| `commit_hash` | `string` | The commit the branch points at. |
+
+An address with no commits returns an empty list.
+
+**Errors**: `PermissionDenied`.
+
+```sh
+call ListBranches '{"uri":"priompt://acme/support/agent"}'
+```
+
+```json title="Output"
+{
+  "branches": [
+    {
+      "name": "main",
+      "commitHash": "a83cea97db1650976e34204aa16d5121c24c8ed191adc54bf2ee24803af6ea1e"
+    },
+    {
+      "name": "refunds",
+      "commitHash": "12a1f29fb268a3b728739ad204b6b58ce7efaa170d4030c4f9d0f589615bba1e"
+    }
+  ]
+}
+```
+
+## ListCommits
+
+Returns every commit of a prompt, newest first, never listing a commit before its children. Unlike [`History`](#history), it includes commits that no branch reaches, such as the commits after the one you rolled `main` back to, so you can roll forward to them with [`SetBranch`](#setbranch). Requires v0.7.4 or later.
+
+**Request**: `ListCommitsRequest`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `uri` | `string` | Prompt address. |
+
+**Response**: `ListCommitsResponse` with `commits`, a list of `Commit` (see [`History`](#history)). An address with no commits returns an empty list.
+
+**Errors**: `PermissionDenied`.
+
+In this example, `main` was rolled back to `first version`, so `History` lists only that commit:
+
+```sh
+call ListCommits '{"uri":"priompt://acme/support/agent"}'
+```
+
+```json title="Output"
+{
+  "commits": [
+    {
+      "hash": "12a1f29fb268a3b728739ad204b6b58ce7efaa170d4030c4f9d0f589615bba1e",
+      "versionHash": "f0100398ecdf28b0e7452dc150fd45d70a02e0a663c0e3002352d9daef80df25",
+      "parent": "a5d2e29b37bde3f3ea2f32c3e40e094fdb37a6b1a5906789cdc4157fda59adaa",
+      "author": "anonymous",
+      "message": "handle refunds",
+      "createdAt": "2026-10-18T23:24:18.611142389Z"
+    },
+    {
+      "hash": "a5d2e29b37bde3f3ea2f32c3e40e094fdb37a6b1a5906789cdc4157fda59adaa",
+      "versionHash": "03e3bb48f55d17fd620dffad0211741bdf2383a22ce7c9ab27a29b4c120c3aab",
+      "parent": "a83cea97db1650976e34204aa16d5121c24c8ed191adc54bf2ee24803af6ea1e",
+      "author": "anonymous",
+      "message": "add tone",
+      "createdAt": "2026-10-18T23:24:18.426825214Z"
+    },
+    {
+      "hash": "a83cea97db1650976e34204aa16d5121c24c8ed191adc54bf2ee24803af6ea1e",
+      "versionHash": "77d71a4d50ee6bd134a7bc6865be21292042d9be7676e5f271894294cb9c533b",
+      "author": "anonymous",
+      "message": "first version",
+      "createdAt": "2026-10-18T23:24:18.336077361Z"
     }
   ]
 }

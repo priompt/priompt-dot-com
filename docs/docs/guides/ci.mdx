@@ -45,8 +45,8 @@ Every job installs the binaries with `go install`. `actions/setup-go` puts them 
           go-version: "1.25"
       - name: Install promptctl and priompt
         run: |
-          go install github.com/priompt/cli/cmd/promptctl@v0.7.1
-          go install github.com/priompt/priompt/cmd/priompt@v0.7.3
+          go install github.com/priompt/cli/cmd/promptctl@v0.7.2
+          go install github.com/priompt/priompt/cmd/priompt@v0.7.4
 ```
 
 ## 2. Validate every prompt
@@ -124,8 +124,8 @@ jobs:
           go-version: "1.25"
       - name: Install promptctl and priompt
         run: |
-          go install github.com/priompt/cli/cmd/promptctl@v0.7.1
-          go install github.com/priompt/priompt/cmd/priompt@v0.7.3
+          go install github.com/priompt/cli/cmd/promptctl@v0.7.2
+          go install github.com/priompt/priompt/cmd/priompt@v0.7.4
       - name: Validate every prompt
         run: |
           priompt serve -addr 127.0.0.1:8443 -db "$RUNNER_TEMP/ci.db" -nats-addr "" -metrics-addr "" &
@@ -164,7 +164,7 @@ jobs:
         with:
           go-version: "1.25"
       - name: Install promptctl
-        run: go install github.com/priompt/cli/cmd/promptctl@v0.7.1
+        run: go install github.com/priompt/cli/cmd/promptctl@v0.7.2
       - name: Publish to the server
         env:
           PRIOMPT_TOKEN: ${{ secrets.PRIOMPT_TOKEN }}

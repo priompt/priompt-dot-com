@@ -29,7 +29,7 @@ curl -s 127.0.0.1:2112/metrics | grep -E "^priompt_(build_info|requests_total)"
 ```
 
 ```text title="Output"
-priompt_build_info{commit="unknown",goversion="go1.26.4",version="v0.7.3"} 1
+priompt_build_info{commit="unknown",goversion="go1.26.4",version="v0.7.4"} 1
 priompt_requests_total{code="InvalidArgument",method="/priompt.v1.PromptService/PublishPrompt"} 1
 priompt_requests_total{code="NotFound",method="/priompt.v1.PromptService/GetPrompt"} 2
 priompt_requests_total{code="OK",method="/priompt.v1.PromptService/DiffPrompt"} 4

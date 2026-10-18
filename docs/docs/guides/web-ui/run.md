@@ -11,7 +11,7 @@ It's a SvelteKit app. Browsers can't speak gRPC, so the app's server side calls 
 
 ## Run it
 
-You need Node 20+, pnpm, and a running Priompt server (see [Quick start](../../quickstart.mdx)).
+You need Node 20+, pnpm, and a running Priompt server, v0.7.4 or later (see [Quick start](../../quickstart.mdx)). The **Branches** tab needs the branch and commit listing that v0.7.4 added.
 
 ```sh
 git clone https://github.com/priompt/ui.git && cd ui
@@ -65,5 +65,4 @@ It publishes about seven prompts under `acme`, some with several versions. Commi
 
 ## Limitations
 
-- Branch lists check `main`, `dev`, `staging`, and `prod` by name, because the server has no `ListBranches` RPC yet ([priompt#45](https://github.com/priompt/priompt/issues/45)). Show other branches with **Show another branch** on the **Branches** tab.
 - Some controls are placeholders that do nothing yet: the account menu, pull requests, inbox, upload, the Ctrl+K dialog on the home page, `/settings`, `/init`, and everything below **Connection** on an org's settings page.
