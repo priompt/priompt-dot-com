@@ -60,6 +60,9 @@ pnpm docs:dev     # http://localhost:3000
 pnpm docs:build   # -> docs/build (deploy as static assets / Pages)
 ```
 
+The docs deploy to docs.priompt.com from `.github/workflows/docs.yml` on every
+push to `main` that touches `docs/` (or run it by hand from the Actions tab).
+
 Unreleased names (Docker image, PyPI and npm packages) live in
 `docs/src/vars.ts` and render through `<Var>` / `<Cmd>`. Set them there, or via
 `PRIOMPT_DOCKER_IMAGE` / `PRIOMPT_PYPI_NAME` / `PRIOMPT_NPM_NAME` at build time.
